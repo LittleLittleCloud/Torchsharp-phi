@@ -179,7 +179,7 @@ public class PhiAttention : nn.Module<
     Tensor, // hidden_states
     Tensor, // position_ids
     Tensor?, // attention_mask
-    Tensor?, // past_key_value
+    int, // past_key_value_length
     bool, // output_attentions
     (
         Tensor, // hidden_states,
@@ -249,11 +249,12 @@ public class PhiAttention : nn.Module<
             maxPositionEmbeddings: this.maxPositionEmbeddings,
             baseValue: this.config.RopeTheta);
     }
+
     public override (Tensor, Tensor, Tensor?) forward(
         Tensor hiddenStates,
         Tensor positionIds,
         Tensor? attentionMask = null,
-        Tensor? pastKeyValue = null,
+        int pastKeyValueLength = 0,
         bool outputAttentions = false)
     {
         var batchSize = hiddenStates.shape[0];
@@ -271,7 +272,7 @@ public class PhiAttention : nn.Module<
         queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose(1, 2);
         keyStates = keyStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
         valueStates = valueStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
-        var kvSeqLen = this.cache_k is null ? (int)keyStates.shape[2] : (int)this.cache_k.shape[2] + (int)keyStates.shape[2];
+        var kvSeqLen = pastKeyValueLength == 0 ? (int)keyStates.shape[2] : pastKeyValueLength + (int)keyStates.shape[2];
         (var cos, var sin) = this.phiRotaryEmbedding.forward(valueStates, kvSeqLen);
         // split the last dim of queryStates and keyStates into rotary and non-rotary parts
         // shape: [batch_size, num_heads, seq_len, head_dim]
@@ -318,7 +319,7 @@ public class PhiAttention : nn.Module<
 
         attnOutput = this.dense.forward(attnOutput);
 
-        return (attnOutput, attnWeights, pastKeyValue);
+        return (attnOutput, attnWeights, null);
     }
 }
 
@@ -326,7 +327,7 @@ public class PhiDecoderLayer : nn.Module<
     Tensor, // hidden_states
     Tensor, // position_ids
     Tensor?, // attention_mask
-    Tensor?, // past_key_value
+    int, // past_key_value_length
     bool, // use_cache
     bool, // output_attentions
     (
@@ -355,7 +356,7 @@ public class PhiDecoderLayer : nn.Module<
         Tensor hiddenStates,
         Tensor positionIds,
         Tensor? attentionMask = null,
-        Tensor? pastKeyValue = null,
+        int pastKeyValueLength = 0,
         bool useCache = false,
         bool outputAttentions = false)
     {
@@ -365,7 +366,7 @@ public class PhiDecoderLayer : nn.Module<
             hiddenStates: hiddenStates,
             positionIds: positionIds,
             attentionMask: attentionMask,
-            pastKeyValue: pastKeyValue,
+            pastKeyValueLength: pastKeyValueLength,
             outputAttentions: outputAttentions);
         var feed_forward_hiddenStates = this.mlp.forward(hiddenStates);
         hiddenStates = residual + feed_forward_hiddenStates + attnOutput;
@@ -454,6 +455,7 @@ public class PhiModel : nn.Module<
                 hiddenStates: hiddenStates,
                 positionIds: positionIds,
                 attentionMask: attentionMask,
+                pastKeyValueLength: pastKeyValueLength,
                 useCache: useCache,
                 outputAttentions: outputAttentions);
         }
