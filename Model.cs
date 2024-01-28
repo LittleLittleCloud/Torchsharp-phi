@@ -163,10 +163,7 @@ public class PhiRotaryEmbedding : nn.Module<
     {
         // TODO
         // can be calculated once and cached
-        Console.WriteLine($"seqLen: {seqLen}");
-        
         var inv_freq = this.get_buffer("inv_freq").to(x.device);
-        Console.WriteLine($"x device: {x.device}");
         var t = torch.arange(seqLen, dtype: inv_freq.dtype, device: inv_freq.device);
         var freqs = torch.outer(t, inv_freq).to(torch.float32);
         var emb = torch.cat([freqs, freqs], dim: -1);
@@ -274,11 +271,7 @@ public class PhiAttention : nn.Module<
         queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose(1, 2);
         keyStates = keyStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
         valueStates = valueStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
-        var kvSeqLen = this.cache_k is null ? (int)keyStates.shape[2] : (int)this.cache_k.shape[2];
-        //TODO
-        // implement cache logic
-        // if past_key_value is not None:
-
+        var kvSeqLen = this.cache_k is null ? (int)keyStates.shape[2] : (int)this.cache_k.shape[2] + (int)keyStates.shape[2];
         (var cos, var sin) = this.phiRotaryEmbedding.forward(valueStates, kvSeqLen);
         // split the last dim of queryStates and keyStates into rotary and non-rotary parts
         // shape: [batch_size, num_heads, seq_len, head_dim]
@@ -454,8 +447,6 @@ public class PhiModel : nn.Module<
         }
 
         var hiddenStates = inputEmbeddings;
-        hiddenStates.Peek("hiddenStates", 10);
-        attentionMask.Peek("attentionMask", 10);
 
         for (int i = 0; i < this.layers.Count; i++)
         {
@@ -467,8 +458,8 @@ public class PhiModel : nn.Module<
                 outputAttentions: outputAttentions);
         }
 
-        hiddenStates.Peek("hiddenStates", 10);
         hiddenStates = this.final_layernorm.forward(hiddenStates);
+        hiddenStates.Peek("hiddenStates", 10);
         return (hiddenStates, null, null);
     }
 

@@ -27,7 +27,7 @@ var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, devi
 var attentionMask = torch.ones_like(inputTensor);
 
 var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device);
-(var token, var logits) = phi2.Generate(inputTensor, attentionMask);
+(var token, var logits) = phi2.Generate(inputTensor, attentionMask, temperature: 0f, maxLen: 30);
 
 var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
 var output = tokenizer.Decode(tokenIds);

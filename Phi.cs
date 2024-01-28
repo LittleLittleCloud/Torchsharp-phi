@@ -79,14 +79,6 @@ public class PhiForCasualLM
                 }
 
                 nextToken = nextToken.reshape(-1);
-                nextToken.Peek("nextToken");
-                // nextToken = torch.where(attentionMask[.., curPos], inputIds[.., curPos], nextToken);
-
-                // print nextToken
-                Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
-
-                // print curPos
-                Console.WriteLine($"curPos: {curPos}");
                 inputIds = torch.cat([inputIds, nextToken.unsqueeze(1)], dim: -1);
                 attentionMask = torch.cat([attentionMask, attentionMask.new_ones(attentionMask.shape[0], 1)], dim: -1);
 
