@@ -21,7 +21,7 @@ public class PhiForCasualLM
     public static PhiForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
-        string weightsName = "phi-2.pt",
+        string weightsName = "phi-2-float32.pt",
         string device = "cpu")
     {
         var config = Path.Join(modelFolder, configName);
@@ -37,104 +37,72 @@ public class PhiForCasualLM
         return new PhiForCasualLM(wrapper);
     }
 
-    // public (
-    //     Tensor, // output token ids [batch_size, sequence_length]
-    //     Tensor // output logits [batch_size, sequence_length, vocab_size]
-    // ) Generate(
-    //     Tensor inputIds, // input token ids [batch_size, sequence_length]
-    //     Tensor attentionMask, // attention mask [batch_size, sequence_length]
-    //     float temperature = 0.7f,
-    //     float topP = 0.9f,
-    //     int maxLen = 128,
-    //     bool echo = false)
-    // {
-    //     var batch = inputIds.shape[0];
-    //     var device = inputIds.device;
+    public (
+        Tensor, // output token ids [batch_size, sequence_length]
+        Tensor // output logits [batch_size, sequence_length, vocab_size]
+    ) Generate(
+        Tensor inputIds, // input token ids [batch_size, sequence_length]
+        Tensor attentionMask, // attention mask [batch_size, sequence_length]
+        float temperature = 0.7f,
+        float topP = 0.9f,
+        int maxLen = 128,
+        int stopTokenId = 50256,
+        bool echo = false)
+    {
+        var batch = inputIds.shape[0];
+        var device = inputIds.device;
+        var minPromptLen = (int)inputIds.shape[1];
+        var totalLen = minPromptLen + maxLen;
 
-    //     using (var _ = torch.no_grad())
-    //     {
-    //         var prevPos = 0;
-    //         var eosReached = torch.tensor(new bool[batch], device: device);
-    //         torch.Tensor logits;
-    //         if (minPromptLen == totalLen)
-    //         {
-    //             logits = this.transformer.forward(tokens, prevPos);
-    //             tokenLogProbs = -torch.nn.functional.cross_entropy(input: logits.transpose(1, 2), target: tokens, reduction: torch.nn.Reduction.None, ignore_index: this.tokenizer.PadId);
-    //         }
+        using (var _ = torch.no_grad())
+        {
+            var prevPos = 0;
+            var eosReached = torch.tensor(new bool[batch], device: device);
+            torch.Tensor? logits = default;
+            if (minPromptLen == totalLen)
+            {
+                (logits, var _, var _) = this.model.forward(inputIds, attentionMask, prevPos);
+            }
 
-    //         for (int curPos = minPromptLen; curPos != totalLen; curPos++)
-    //         {
-    //             logits = this.transformer.forward(tokens[.., prevPos..curPos], prevPos);
-    //             torch.Tensor nextToken;
-    //             if (temperature > 0)
-    //             {
-    //                 var probs = torch.softmax(logits[.., -1] / temperature, dim: -1);
-    //                 nextToken = this.SampleTopP(probs, topP);
-    //             }
-    //             else
-    //             {
-    //                 nextToken = torch.argmax(logits[.., -1], dim: -1);
-    //             }
+            for (int curPos = minPromptLen; curPos != totalLen; curPos++)
+            {
+                (logits, var _, var _) = this.model.forward(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], prevPos);
+                torch.Tensor nextToken;
+                if (temperature > 0)
+                {
+                    var probs = torch.softmax(logits[.., -1] / temperature, dim: -1);
+                    nextToken = this.SampleTopP(probs, topP);
+                }
+                else
+                {
+                    nextToken = torch.argmax(logits[.., -1], dim: -1);
+                }
 
-    //             nextToken = nextToken.reshape(-1);
-    //             // # only replace token if prompt has already been generated
-    //             nextToken = torch.where(attentionMask[.., curPos], tokens[.., curPos], nextToken);
+                nextToken = nextToken.reshape(-1);
+                nextToken.Peek("nextToken");
+                // nextToken = torch.where(attentionMask[.., curPos], inputIds[.., curPos], nextToken);
 
-    //             // print nextToken
-    //             Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
+                // print nextToken
+                Console.WriteLine($"nextToken: {string.Join(",", nextToken.data<long>())}");
 
-    //             // print curPos
-    //             Console.WriteLine($"curPos: {curPos}");
-    //             tokens[.., curPos] = nextToken;
-    //             if (logProbs)
-    //             {
-    //                 tokenLogProbs![.., (prevPos + 1) .. (curPos + 1)] = - torch.nn.functional.cross_entropy(input: logits.transpose(1, 2), target: tokens[.., (prevPos + 1) .. (curPos + 1)], reduction: torch.nn.Reduction.None, ignore_index: this.tokenizer.PadId);
-    //             }
+                // print curPos
+                Console.WriteLine($"curPos: {curPos}");
+                inputIds = torch.cat([inputIds, nextToken.unsqueeze(1)], dim: -1);
+                attentionMask = torch.cat([attentionMask, attentionMask.new_ones(attentionMask.shape[0], 1)], dim: -1);
 
-    //             eosReached |= (~attentionMask[.., curPos]) & (nextToken == this.tokenizer.EosId);
-    //             if (eosReached.all().item<bool>())
-    //             {
-    //                 break;
-    //             }
+                // eosReached |= (~attentionMask[.., curPos]) & (nextToken == stopTokenId);
+                // if (eosReached.all().item<bool>())
+                // {
+                //     break;
+                // }
 
-    //             prevPos = curPos;
-    //         }
+                prevPos = curPos;
 
-    //         var outputTokens = new int[batch][];
-    //         var outputLogProbs = new float[batch][];
+            }
 
-    //         for (var i = 0; i < batch; i++)
-    //         {
-    //             // cut to max gen len
-    //             var start = echo ? 0 : promptTokens[i].Length;
-    //             var toks = tokens[i][start..(promptTokens[i].Length + maxGenLen)].data<long>().Select(x => (int)x).ToArray();
-    //             float[]? probs = null;
-    //             if (logProbs)
-    //             {
-    //                 probs = tokenLogProbs![i][start..(promptTokens[i].Length + maxGenLen)].data<float>().ToArray();
-    //             }
-
-    //             // cut to first eos if any
-    //             if (toks.Contains(this.tokenizer.EosId))
-    //             {
-    //                 var eosPos = Array.IndexOf(toks, this.tokenizer.EosId);
-    //                 toks = toks[..eosPos];
-    //                 if (logProbs)
-    //                 {
-    //                     probs = probs![..eosPos];
-    //                 }
-    //             }
-
-    //             outputTokens[i] = toks;
-    //             if (logProbs)
-    //             {
-    //                 outputLogProbs[i] = probs!;
-    //             }
-    //         }
-
-    //         return (outputTokens, logProbs ? null : outputLogProbs);
-    //     }
-    // }
+            return (inputIds, logits!);
+        }
+    }
 
     private torch.Tensor SampleTopP(torch.Tensor logits, float topP)
     {

@@ -99,7 +99,8 @@ public static class Utils
     {
         var x1 = x[.., .., .., ..(int)(x.shape[^1] / 2)];
         var x2 = x[.., .., .., (int)(x.shape[^1] / 2)..];
-        return torch.cat([x2, x1], dim: -1);
+        // (x1 * x1 * x2).Peek("x1 * x1 * x2");
+        return torch.cat([-x2, x1], dim: -1);
     }
 
     // python
@@ -130,7 +131,7 @@ public static class Utils
 //     q_embed = (q * cos) + (rotate_half(q) * sin)
 //     k_embed = (k * cos) + (rotate_half(k) * sin)
 //     return q_embed, k_embed
-
+    
     public static (Tensor, Tensor) ApplyRotaryPosEmb(Tensor q, Tensor k, Tensor cos, Tensor sin, Tensor positionIds, int unsqueezeDim = 1)
     {
         // The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and

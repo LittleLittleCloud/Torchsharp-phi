@@ -26,7 +26,10 @@ var inputIds = tokenizer.Encode("Instruct: A skier slides down a frictionless sl
 var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
 var attentionMask = torch.ones_like(inputTensor);
 
-using var no = torch.no_grad();
 var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device);
-var res = phi2.Model.forward(inputTensor, attentionMask);
-res.Item1.Peek("output token ids");
+(var token, var logits) = phi2.Generate(inputTensor, attentionMask);
+
+var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
+var output = tokenizer.Decode(tokenIds);
+Console.WriteLine(output);
+

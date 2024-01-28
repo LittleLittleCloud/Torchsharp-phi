@@ -6,9 +6,11 @@ public static class Extension
     public static void Peek(this Tensor tensor, string id, int n = 10)
     {
         var shapeString = string.Join(',', tensor.shape);
-        var dataString = string.Join(',', tensor.reshape(-1)[0..n].to_type(ScalarType.Float32).data<float>().ToArray());
-        var sum = tensor.sum().ToSingle();
-        Console.WriteLine($"{id}: tensor [{dataString}] dtype: {tensor.dtype} shape: [{shapeString}] sum: {sum} device: {tensor.device}");
+        var dataString = string.Join(',', tensor.reshape(-1)[..n].to_type(ScalarType.Float32).data<float>().ToArray());
+        var tensor_1d = tensor.reshape(-1);
+        var tensor_index = torch.arange(tensor_1d.shape[0], dtype: ScalarType.Float32).to(tensor_1d.device).sqrt();
+        var avg = (tensor_1d * tensor_index).sum() / tensor_1d.sum();
+        Console.WriteLine($"{id}: sum: {avg.ToSingle()}  dtype: {tensor.dtype} shape: [{shapeString}] device: {tensor.device}");
     }
 
     public static void Peek(this nn.Module model)

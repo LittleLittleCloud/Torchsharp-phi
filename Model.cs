@@ -94,7 +94,7 @@ public class PhiConfig
     [JsonPropertyName("eos_token_id")]
     public int EosTokenId { get; set; } = 2;
 
-    public ScalarType Dtype => ScalarType.BFloat16;
+    public ScalarType Dtype => ScalarType.Float32;
 }
 
 public class NewGELUActivation : torch.nn.Module<Tensor, Tensor>
@@ -153,7 +153,6 @@ public class PhiRotaryEmbedding : nn.Module<
         _base = baseValue;
         _maxPositionEmbeddings = maxPositionEmbeddings;
         _dim = dim;
-        Console.WriteLine($"base: {_base} maxPositionEmbeddings: {_maxPositionEmbeddings} dim: {_dim}");
         var thetaNumerator = torch.arange(0, _dim, 2).to(torch.float32);
         this.register_buffer("inv_freq", torch.pow(baseValue, -1.0f * (thetaNumerator / dim)), persistent: false);
     }
@@ -164,7 +163,10 @@ public class PhiRotaryEmbedding : nn.Module<
     {
         // TODO
         // can be calculated once and cached
+        Console.WriteLine($"seqLen: {seqLen}");
+        
         var inv_freq = this.get_buffer("inv_freq").to(x.device);
+        Console.WriteLine($"x device: {x.device}");
         var t = torch.arange(seqLen, dtype: inv_freq.dtype, device: inv_freq.device);
         var freqs = torch.outer(t, inv_freq).to(torch.float32);
         var emb = torch.cat([freqs, freqs], dim: -1);
@@ -263,7 +265,6 @@ public class PhiAttention : nn.Module<
         var queryStates = this.q_proj.forward(hiddenStates);
         var keyStates = this.k_proj.forward(hiddenStates);
         var valueStates = this.v_proj.forward(hiddenStates);
-
         if (this.qk_layernorm)
         {
             queryStates = this.q_layernorm!.forward(queryStates);
@@ -273,7 +274,6 @@ public class PhiAttention : nn.Module<
         queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose(1, 2);
         keyStates = keyStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
         valueStates = valueStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
-
         var kvSeqLen = this.cache_k is null ? (int)keyStates.shape[2] : (int)this.cache_k.shape[2];
         //TODO
         // implement cache logic
@@ -284,13 +284,12 @@ public class PhiAttention : nn.Module<
         // shape: [batch_size, num_heads, seq_len, head_dim]
         // queryRot: [batch_size, num_heads, seq_len, :head_dim * partial_rotary_factor]
         // queryPass: [batch_size, num_heads, seq_len, head_dim * partial_rotary_factor:]
-        var queryRot = queryStates[..,..,.., ..this.phiRotaryEmbedding.Dim];
-        var queryPass = queryStates[..,..,.., this.phiRotaryEmbedding.Dim..];
+        
         var keyRot = keyStates[.., .., .., ..this.phiRotaryEmbedding.Dim];
         var keyPass = keyStates[.., .., .., this.phiRotaryEmbedding.Dim..];
-
+        var queryRot = queryStates[.., .., .., ..this.phiRotaryEmbedding.Dim];
+        var queryPass = queryStates[..,..,.., this.phiRotaryEmbedding.Dim..];
         (var qRot, var kRot) = Utils.ApplyRotaryPosEmb(queryRot, keyRot, cos, sin, positionIds);
-        qRot.Peek("qRot", 10);
         queryStates = torch.cat([qRot, queryPass], dim: -1);
         keyStates = torch.cat([kRot, keyPass], dim: -1);
         if (this.cache_k is null || this.cache_v is null)
@@ -313,10 +312,13 @@ public class PhiAttention : nn.Module<
         // Queries and keys upcast to fp32 is required by Phi-2 to avoid overflow
         var attnWeights = torch.matmul(queryStates.to(torch.float32), keyStates.to(torch.float32).transpose(2, 3));
         attnWeights = attnWeights / Math.Sqrt(this.headDim);
+        if (attentionMask is not null)
+        {
+            attnWeights = attnWeights + attentionMask;
+        }
 
-        attnWeights = nn.functional.softmax(attnWeights, dim: -1, dtype: ScalarType.Float32).to_type(hiddenStates.dtype);
-        attnWeights = nn.functional.dropout(attnWeights, this.attentionDropout, training: this.training);
-
+        attnWeights = nn.functional.softmax(attnWeights, dim: -1, dtype: ScalarType.Float32).to_type(valueStates.dtype);
+        attnWeights = nn.functional.dropout(attnWeights, p: this.attentionDropout, training: true);
         var attnOutput = torch.matmul(attnWeights, valueStates);
         attnOutput = attnOutput.transpose(1, 2).contiguous();
         attnOutput = attnOutput.reshape(batchSize, seqLen, this.hiddenSize);
@@ -372,10 +374,7 @@ public class PhiDecoderLayer : nn.Module<
             attentionMask: attentionMask,
             pastKeyValue: pastKeyValue,
             outputAttentions: outputAttentions);
-
-        var attn_outputs = this.resid_dropout.forward(attnOutput);
-        var feed_forward_hiddenStates = this.resid_dropout.forward(this.mlp.forward(attn_outputs));
-
+        var feed_forward_hiddenStates = this.mlp.forward(hiddenStates);
         hiddenStates = residual + feed_forward_hiddenStates + attnOutput;
 
         return (hiddenStates, attnWeights, presentKeyValue);
@@ -385,7 +384,7 @@ public class PhiDecoderLayer : nn.Module<
 public class PhiModel : nn.Module<
     Tensor, // input_ids
     Tensor?, // attention_mask
-    Tensor?, // past_key_value
+    int, // past_key_value_length
     Tensor?, // position_ids
     Tensor?, //input embeddings
     (
@@ -422,7 +421,7 @@ public class PhiModel : nn.Module<
     public override (Tensor, Tensor?, Tensor?) forward(
         Tensor inputIds,
         Tensor? attentionMask = null,
-        Tensor? pastKeyValue = null,
+        int pastKeyValueLength = 0,
         Tensor? positionIds = null,
         Tensor? inputEmbeddings = null,
         (bool, bool, bool) options = default) // use_cache, output_attentions, output_hidden_states
@@ -441,11 +440,6 @@ public class PhiModel : nn.Module<
         var batchSize = inputIds.shape[0];
         var seqLen = (int)inputIds.shape[1];
 
-        // TODO
-        // add support for cache
-
-
-        var pastKeyValueLength = 0;
         if (positionIds is null)
         {
             positionIds = torch.arange(pastKeyValueLength, seqLen + pastKeyValueLength, dtype: inputIds.dtype, device: inputIds.device);
@@ -456,53 +450,89 @@ public class PhiModel : nn.Module<
         // use 4d attention mask
         if (attentionMask is not null)
         {
-            attentionMask = this.Prepare4DCasualAttentionMask(attentionMask, seqLen, inputIds.dtype);
+            attentionMask = this.Prepare4DCasualAttentionMask(attentionMask, seqLen, pastKeyValueLength, inputEmbeddings.dtype);
         }
 
         var hiddenStates = inputEmbeddings;
         hiddenStates.Peek("hiddenStates", 10);
+        attentionMask.Peek("attentionMask", 10);
 
         for (int i = 0; i < this.layers.Count; i++)
         {
-            (hiddenStates, _, pastKeyValue) = this.layers[i].forward(
+            (hiddenStates, _, _) = this.layers[i].forward(
                 hiddenStates: hiddenStates,
                 positionIds: positionIds,
                 attentionMask: attentionMask,
-                pastKeyValue: pastKeyValue,
                 useCache: useCache,
                 outputAttentions: outputAttentions);
         }
 
+        hiddenStates.Peek("hiddenStates", 10);
         hiddenStates = this.final_layernorm.forward(hiddenStates);
-
         return (hiddenStates, null, null);
     }
 
     private Tensor Prepare4DCasualAttentionMask(
         Tensor attentionMask,
-        int targetLength,
+        int queryLength,
+        int pastKeyValueLength,
         ScalarType dtype)
     {
-        //  Creates a causal 4D mask of shape `(batch_size, 1, targetLength, seqLengh)` from a 2D mask of shape `(batch_size, seqLengh)`.
-        //  This is the causal mask that is used for casual attention.
-
-        var batchSize = attentionMask.shape[0];
+        var batchSize = (int)attentionMask.shape[0];
         var seqLen = attentionMask.shape[1];
-        var expandedMask = attentionMask.unsqueeze(1).unsqueeze(2);
+        seqLen.Should().Be(queryLength);
+        var targetLength = queryLength + pastKeyValueLength;
+        var casual4DMask = this.MakeCasualAttentionMask(batchSize, queryLength, pastKeyValueLength, attentionMask.device, dtype);
+        var expandedMask = this.ExpandMask(attentionMask, dtype, queryLength).to(attentionMask.device);
 
-        // expandedMask = expandedMask.expand(batchSize, 1, targetLength, seqLen);
-        expandedMask = expandedMask.expand(new long[] { batchSize, 1, targetLength, seqLen });
+        expandedMask = casual4DMask.masked_fill(expandedMask.to_type(ScalarType.Bool), torch.finfo(dtype).min);
+        return expandedMask;
+    }
 
-        var invertedMask = expandedMask.logical_not();
+    private Tensor ExpandMask(
+        Tensor mask,
+        ScalarType dtype,
+        int targetLength)
+    {
+        var batch = mask.shape[0];
+        var seqLen = mask.shape[1];
+        var expandedMask = mask.unsqueeze(1).unsqueeze(2);
+        expandedMask = expandedMask.expand(new long[] { batch, 1, targetLength, seqLen });
+        expandedMask = expandedMask.to_type(dtype);
 
-        return invertedMask.masked_fill_(expandedMask.to_type(ScalarType.Bool), float.NegativeInfinity).to_type(dtype);
+        var invertedMask = (1.0f - expandedMask) > 0;
+
+        return invertedMask.masked_fill(invertedMask.to_type(ScalarType.Bool), torch.finfo(dtype).min);
+    }
+    private Tensor MakeCasualAttentionMask(
+        int batchSize,
+        int targetLen,
+        int pastKeyValueLength,
+        Device device,
+        ScalarType dtype)
+    {
+        var mask = torch.full([targetLen, targetLen], torch.finfo(dtype).min, dtype: dtype, device: device);
+        var mask_cond = torch.arange(mask.size(-1), device: device);
+        mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0.0f);
+
+        mask = mask.to_type(dtype);
+
+        if (pastKeyValueLength > 0)
+        {
+            mask = torch.cat([torch.zeros([targetLen, pastKeyValueLength], dtype: dtype, device: device), mask], dim: -1);
+        }
+
+        mask = mask.unsqueeze(0).unsqueeze(0);
+        mask = mask.expand(new long[] { batchSize, 1, targetLen, targetLen + pastKeyValueLength });
+
+        return mask;
     }
 }
 
 public class PhiModelInferenceWrapper : nn.Module<
     Tensor, // input_ids
     Tensor?, // attention_mask
-    Tensor?, // past_key_value
+    int, // past_key_value_length
     Tensor?, // position_ids
     Tensor?, //input embeddings
     (
@@ -531,12 +561,12 @@ public class PhiModelInferenceWrapper : nn.Module<
     public override (Tensor, Tensor?, Tensor?) forward(
         Tensor inputIds,
         Tensor? attentionMask = null,
-        Tensor? pastKeyValue = null,
+        int pastKeyValueLength = 0,
         Tensor? positionIds = null,
         Tensor? inputEmbeddings = null,
         (bool, bool, bool) options = default) // use_cache, output_attentions, output_hidden_states
     {
-        var output = this.model.forward(inputIds, attentionMask, pastKeyValue, positionIds, inputEmbeddings, options);
+        var output = this.model.forward(inputIds, attentionMask, pastKeyValueLength, positionIds, inputEmbeddings, options);
         var hidden_state = output.Item1;
 
         var lm_logits = this.lm_head.forward(hidden_state);
