@@ -14,6 +14,8 @@ if (device == "cuda")
     torch.InitializeDeviceType(DeviceType.CUDA);
     torch.cuda.is_available().Should().BeTrue();
 }
+var defaultType = ScalarType.Float32;
+torch.set_default_dtype(defaultType);
 
 torch.manual_seed(100);
 
@@ -26,8 +28,8 @@ var inputIds = tokenizer.Encode("Instruct: A skier slides down a frictionless sl
 var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
 var attentionMask = torch.ones_like(inputTensor);
 
-var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device);
-(var token, var logits) = phi2.Generate(inputTensor, attentionMask, temperature: 0f, maxLen: 50);
+var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, weightsName: "phi-2-float32.pt");
+(var token, var logits) = phi2.Generate(inputTensor, attentionMask, temperature: 0f, maxLen: 80);
 
 var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
 var output = tokenizer.Decode(tokenIds);

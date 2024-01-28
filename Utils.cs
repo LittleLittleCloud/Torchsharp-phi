@@ -143,8 +143,12 @@ public static class Utils
 
         cos = cos[positionIds].unsqueeze(unsqueezeDim);
         sin = sin[positionIds].unsqueeze(unsqueezeDim);
-        var qEmbed = (q * cos) + (RotateHalf(q) * sin);
-        var kEmbed = (k * cos) + (RotateHalf(k) * sin);
+        var qEmbed = q * cos;
+        qEmbed += RotateHalf(q) * sin;
+
+        var kEmbed = k * cos;
+        kEmbed += RotateHalf(k) * sin;
+        // var kEmbed = (k * cos) + (RotateHalf(k) * sin);
         return (qEmbed, kEmbed);
     }
 

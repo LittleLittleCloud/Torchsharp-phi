@@ -5,21 +5,24 @@ public static class Extension
 {
     public static void Peek(this Tensor tensor, string id, int n = 10)
     {
+        var device = tensor.device;
+        tensor = tensor.cpu();
         var shapeString = string.Join(',', tensor.shape);
         var dataString = string.Join(',', tensor.reshape(-1)[..n].to_type(ScalarType.Float32).data<float>().ToArray());
         var tensor_1d = tensor.reshape(-1);
         var tensor_index = torch.arange(tensor_1d.shape[0], dtype: ScalarType.Float32).to(tensor_1d.device).sqrt();
-        var avg = (tensor_1d * tensor_index).sum() / tensor_1d.sum();
-        Console.WriteLine($"{id}: sum: {avg.ToSingle()}  dtype: {tensor.dtype} shape: [{shapeString}] device: {tensor.device}");
+        var avg = (tensor_1d * tensor_index).sum();
+        avg = avg / tensor_1d.sum();
+        Console.WriteLine($"{id}: sum: {avg.ToSingle()}  dtype: {tensor.dtype} shape: [{shapeString}] device: {device} has grad? {tensor.requires_grad}");
     }
 
     public static void Peek(this nn.Module model)
     {
         var state_dict = model.state_dict();
         // preview state_dict
-        foreach (var (key, value) in state_dict)
+        foreach (var (key, value) in state_dict.OrderBy(x => x.Key))
         {
-            Console.WriteLine($"key: {key} value: {value}");
+            value.Peek(key);
         }
     }
 

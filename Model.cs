@@ -94,7 +94,7 @@ public class PhiConfig
     [JsonPropertyName("eos_token_id")]
     public int EosTokenId { get; set; } = 2;
 
-    public ScalarType Dtype => ScalarType.Float32;
+    public ScalarType Dtype { get; set; } = ScalarType.Float32;
 }
 
 public class NewGELUActivation : torch.nn.Module<Tensor, Tensor>
@@ -107,8 +107,12 @@ public class NewGELUActivation : torch.nn.Module<Tensor, Tensor>
     public override Tensor forward(Tensor input)
     {
         // return 0.5 * input * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (input + 0.044715 * torch.pow(input, 3.0))))
-
-        return 0.5 * input * (1.0 + torch.tanh(torch.sqrt(2.0 / Math.PI) * (input + 0.044715 * torch.pow(input, 3.0))));
+        using var result = 0.044715 * torch.pow(input, 3.0);
+        using var result2 = result + input;
+        using var result3 = Math.Sqrt(2.0 / Math.PI) * result2;
+        using var result4 = torch.tanh(result3);
+        using var result5 = 1.0 + result4;
+        return 0.5 * input * result5;
     }
 }
 
@@ -127,11 +131,9 @@ public class PhiMLP : torch.nn.Module<Tensor, Tensor>
     }
     public override Tensor forward(Tensor input)
     {
-        input = this.fc1.forward(input);
-        input = this.activation_fn.forward(input);
-        input = this.fc2.forward(input);
-
-        return input;
+        using var input1 = this.fc1.forward(input);
+        using var input2 = this.activation_fn.forward(input1);
+        return this.fc2.forward(input2);
     }
 }
 
@@ -266,7 +268,7 @@ public class PhiAttention : nn.Module<
         if (this.qk_layernorm)
         {
             queryStates = this.q_layernorm!.forward(queryStates);
-            keyStates = this.k_layernorm!.forward(keyStates);
+        keyStates = this.k_layernorm!.forward(keyStates);
         }
 
         queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose(1, 2);

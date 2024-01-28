@@ -21,18 +21,20 @@ public class PhiForCasualLM
     public static PhiForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
-        string weightsName = "phi-2-float32.pt",
+        string weightsName = "phi-2-float16.pt",
+        ScalarType defaultDType = ScalarType.Float32,
         string device = "cpu")
     {
         var config = Path.Join(modelFolder, configName);
         var modelConfig = JsonSerializer.Deserialize<PhiConfig>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
+        modelConfig.Dtype = defaultDType;
         var phi = new PhiModel(modelConfig);
         var wrapper = new PhiModelInferenceWrapper(phi);
         var weightPath = Path.Join(modelFolder, weightsName);
         var loadedParameters = new Dictionary<string, bool>();
         wrapper.load_py(weightPath, strict: true, loadedParameters: loadedParameters);
-        
         wrapper = wrapper.to(device);
+        wrapper.eval();
 
         return new PhiForCasualLM(wrapper);
     }
@@ -81,7 +83,7 @@ public class PhiForCasualLM
                 nextToken = nextToken.reshape(-1);
                 inputIds = torch.cat([inputIds, nextToken.unsqueeze(1)], dim: -1);
                 attentionMask = torch.cat([attentionMask, attentionMask.new_ones(attentionMask.shape[0], 1)], dim: -1);
-
+                Console.WriteLine(curPos);
                 // eosReached |= (~attentionMask[.., curPos]) & (nextToken == stopTokenId);
                 // if (eosReached.all().item<bool>())
                 // {
