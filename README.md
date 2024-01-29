@@ -46,7 +46,7 @@ And move the `phi-2.pt` file to the huggingface model weight folder.
 After that, your huggingface model weight folder should look like this:
 
 ```
-phi-2
+hugginface model weight folder
 ├── config.json # phi model config
 ├── phi-2.pt # converted pytorch model
 ├── vocab.json # vocab for tokenizer
