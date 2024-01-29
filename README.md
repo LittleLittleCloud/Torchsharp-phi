@@ -13,11 +13,14 @@ To get Phi-2 model weight, run the following command to clone the model repo fro
 ```bash
 git clone https://huggingface.co/microsoft/phi-2
 ```
-> ![Note]
+> [!Note]
 > Make sure you have git lfs installed
 
-> ![Note]
+> [!Note]
 > To run Phi-2 model, you need to have at least 12GB GPU memory.
+
+> [!Note]
+> Loading other Phi model should be similar but I haven't test them yet. Please create an issue if you have trouble loading other Phi models.
 
 ### Step 2: Convert the model weight to pytorch format
 Use the following script to convert the model weight to pytorch format:
@@ -138,5 +141,5 @@ Phi model is a suite of small language models developed by Microsoft Research. U
 - [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), A 1.3B parameter model which demonstrates a nearly state-of-the-art performance among models with less than 10 billion parameters.
 - [Phi-1](https://huggingface.co/microsoft/phi-1), A 1.3B parameter model, specialized for basic Python coding.
 
-> ![Warning]
+> [!Warning]
 > All the Phi-series models does not fined tuned with RLHF, which means the model might generate offensive content. Please use with caution.
