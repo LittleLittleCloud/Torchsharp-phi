@@ -42,8 +42,8 @@ with open("phi-2.pt", "wb") as f:
 > ```
 
 
-And move the `phi-2.pt` file inside the `phi-2` cloned folder.
-After that, your `phi-2` folder should look like this:
+And move the `phi-2.pt` file to the huggingface model weight folder.
+After that, your huggingface model weight folder should look like this:
 
 ```
 phi-2
