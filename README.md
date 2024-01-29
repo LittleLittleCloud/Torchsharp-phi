@@ -9,7 +9,7 @@ To run the Phi model on your local machine, the following prerequisites are requ
 - git lfs, this is to download the model file from hugging face
 
 ### Step 1: Get the model weight from huggingface
-To get Phi-2 model weight, run the following command to clone the model repo from huggingface:
+To get Phi-2 model weight, run the following command to download model weight from huggingface:
 ```bash
 git clone https://huggingface.co/microsoft/phi-2
 ```
