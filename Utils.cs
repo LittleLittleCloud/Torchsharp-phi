@@ -166,7 +166,7 @@ public static class Utils
 
         return x.unsqueeze(3)
                 .expand(batchSize, seqLen, nKVHeads, nRep, headDim)
-                .reshape(batchSize, seqLen, nKVHeads * nRep, headDim);
+                .view(batchSize, seqLen, nKVHeads * nRep, headDim);
     }
 
 }

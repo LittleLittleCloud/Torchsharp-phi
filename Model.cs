@@ -252,13 +252,14 @@ public class PhiAttention : nn.Module<
             baseValue: this.config.RopeTheta);
     }
 
-    public override (Tensor, Tensor, Tensor?) forward(
+    public override (Tensor, Tensor?, Tensor?) forward(
         Tensor hiddenStates,
         Tensor positionIds,
         Tensor? attentionMask = null,
         int pastKeyValueLength = 0,
         bool outputAttentions = false)
     {
+        using var _ = torch.NewDisposeScope();
         var batchSize = hiddenStates.shape[0];
         var seqLen = (int)hiddenStates.shape[1];
 
@@ -268,12 +269,12 @@ public class PhiAttention : nn.Module<
         if (this.qk_layernorm)
         {
             queryStates = this.q_layernorm!.forward(queryStates);
-        keyStates = this.k_layernorm!.forward(keyStates);
+            keyStates = this.k_layernorm!.forward(keyStates);
         }
 
-        queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose(1, 2);
-        keyStates = keyStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
-        valueStates = valueStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose(1, 2);
+        queryStates = queryStates.view(batchSize, seqLen, this.numAttentionHeads, this.headDim).transpose_(1, 2);
+        keyStates = keyStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose_(1, 2);
+        valueStates = valueStates.view(batchSize, seqLen, this.numKeyValueHeads, this.headDim).transpose_(1, 2);
         var kvSeqLen = pastKeyValueLength == 0 ? (int)keyStates.shape[2] : pastKeyValueLength + (int)keyStates.shape[2];
         (var cos, var sin) = this.phiRotaryEmbedding.forward(valueStates, kvSeqLen);
         // split the last dim of queryStates and keyStates into rotary and non-rotary parts
@@ -286,42 +287,37 @@ public class PhiAttention : nn.Module<
         var queryRot = queryStates[.., .., .., ..this.phiRotaryEmbedding.Dim];
         var queryPass = queryStates[..,..,.., this.phiRotaryEmbedding.Dim..];
         (var qRot, var kRot) = Utils.ApplyRotaryPosEmb(queryRot, keyRot, cos, sin, positionIds);
+
         queryStates = torch.cat([qRot, queryPass], dim: -1);
+        // update cache
         keyStates = torch.cat([kRot, keyPass], dim: -1);
-        if (this.cache_k is null || this.cache_v is null)
+        if (pastKeyValueLength == 0)
         {
-            this.cache_k = keyStates;
-            this.cache_v = valueStates;
+            this.cache_k = keyStates.cpu().DetachFromDisposeScope();
+            this.cache_v = valueStates.cpu().DetachFromDisposeScope();
         }
         else
         {
-            this.cache_k = torch.cat([this.cache_k, keyStates], dim: -2);
-            this.cache_v = torch.cat([this.cache_v, valueStates], dim: -2);
+            this.cache_k = torch.cat([this.cache_k!, keyStates.cpu()], dim: -2).DetachFromDisposeScope();
+            this.cache_v = torch.cat([this.cache_v!, valueStates.cpu()], dim: -2).DetachFromDisposeScope();
         }
-
-        keyStates = this.cache_k;
-        valueStates = this.cache_v;
-
-        keyStates = Utils.RepeatKV(keyStates, this.numKeyValueGroups);
-        valueStates = Utils.RepeatKV(valueStates, this.numKeyValueGroups);
-
+        
+        using var keyStates2 = Utils.RepeatKV(this.cache_k, this.numKeyValueGroups).to(hiddenStates.device);
+        using var valueStates2 = Utils.RepeatKV(this.cache_v, this.numKeyValueGroups).to(hiddenStates.device);
         // Queries and keys upcast to fp32 is required by Phi-2 to avoid overflow
-        var attnWeights = torch.matmul(queryStates.to(torch.float32), keyStates.to(torch.float32).transpose(2, 3));
+        var attnWeights = torch.matmul(queryStates, keyStates2.transpose_(2, 3));
         attnWeights = attnWeights / Math.Sqrt(this.headDim);
         if (attentionMask is not null)
         {
             attnWeights = attnWeights + attentionMask;
         }
-
-        attnWeights = nn.functional.softmax(attnWeights, dim: -1, dtype: ScalarType.Float32).to_type(valueStates.dtype);
+        attnWeights = nn.functional.softmax(attnWeights, dim: -1);
         attnWeights = nn.functional.dropout(attnWeights, p: this.attentionDropout, training: true);
-        var attnOutput = torch.matmul(attnWeights, valueStates);
-        attnOutput = attnOutput.transpose(1, 2).contiguous();
+        var attnOutput = torch.matmul(attnWeights, valueStates2);
+        attnOutput = attnOutput.transpose_(1, 2).contiguous();
         attnOutput = attnOutput.reshape(batchSize, seqLen, this.hiddenSize);
-
-        attnOutput = this.dense.forward(attnOutput);
-
-        return (attnOutput, attnWeights, null);
+        var result = this.dense.forward(attnOutput);
+        return (result.MoveToOuterDisposeScope(), null, null);
     }
 }
 
@@ -354,7 +350,7 @@ public class PhiDecoderLayer : nn.Module<
         this.resid_dropout = nn.Dropout(config.ResidPdrop);
     }
 
-    public override (Tensor, Tensor, Tensor?) forward(
+    public override (Tensor, Tensor?, Tensor?) forward(
         Tensor hiddenStates,
         Tensor positionIds,
         Tensor? attentionMask = null,
@@ -362,6 +358,7 @@ public class PhiDecoderLayer : nn.Module<
         bool useCache = false,
         bool outputAttentions = false)
     {
+        using var _ = torch.NewDisposeScope();
         var residual = hiddenStates;
         hiddenStates = this.input_layernorm.forward(hiddenStates);
         (var attnOutput, var attnWeights, var presentKeyValue) = this.self_attn.forward(
@@ -373,7 +370,7 @@ public class PhiDecoderLayer : nn.Module<
         var feed_forward_hiddenStates = this.mlp.forward(hiddenStates);
         hiddenStates = residual + feed_forward_hiddenStates + attnOutput;
 
-        return (hiddenStates, attnWeights, presentKeyValue);
+        return (hiddenStates.MoveToOuterDisposeScope(), null, null);
     }
 }
 
@@ -463,7 +460,6 @@ public class PhiModel : nn.Module<
         }
 
         hiddenStates = this.final_layernorm.forward(hiddenStates);
-        hiddenStates.Peek("hiddenStates", 10);
         return (hiddenStates, null, null);
     }
 
@@ -480,8 +476,8 @@ public class PhiModel : nn.Module<
         var casual4DMask = this.MakeCasualAttentionMask(batchSize, queryLength, pastKeyValueLength, attentionMask.device, dtype);
         var expandedMask = this.ExpandMask(attentionMask, dtype, queryLength).to(attentionMask.device);
 
-        expandedMask = casual4DMask.masked_fill(expandedMask.to_type(ScalarType.Bool), torch.finfo(dtype).min);
-        return expandedMask;
+        casual4DMask.masked_fill_(expandedMask.to_type(ScalarType.Bool), torch.finfo(dtype).min);
+        return casual4DMask;
     }
 
     private Tensor ExpandMask(

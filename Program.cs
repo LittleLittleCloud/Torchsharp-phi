@@ -16,22 +16,35 @@ if (device == "cuda")
 }
 var defaultType = ScalarType.Float32;
 torch.set_default_dtype(defaultType);
-
-torch.manual_seed(100);
-
-// var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: "cuda");
+torch.manual_seed(1);
 
 var tokenizer = BPETokenizer.FromPretrained(phi2Folder);
-
-var inputIds = tokenizer.Encode("Instruct: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?\nOutput:");
-
-var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
-var attentionMask = torch.ones_like(inputTensor);
-
 var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, weightsName: "phi-2-float32.pt");
-(var token, var logits) = phi2.Generate(inputTensor, attentionMask, temperature: 0f, maxLen: 80);
 
-var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
-var output = tokenizer.Decode(tokenIds);
+
+// QA Format
+Console.WriteLine("QA Format");
+var prompt = @"Instruction: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?
+Output:";
+var output = phi2.Generate(tokenizer, prompt, maxLen: 256, temperature: 0f);
 Console.WriteLine(output);
+
+// Chat Format
+Console.WriteLine("Chat Format");
+var chatPrompt = @"Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?
+Bob: Well, have you tried creating a study schedule and sticking to it?
+Alice: Yes, I have, but it doesn't seem to help much.
+Bob: Hmm, maybe you should try studying in a quiet environment, like the library.
+Alice:";
+var chatOutput = phi2.Generate(tokenizer, chatPrompt, maxLen: 256, temperature: 0.3f, stopSequences: [ "Bob:"]);
+Console.WriteLine(chatOutput);
+
+// Code Format
+Console.WriteLine("Code Format");
+var codePrompt = @"Complete the following code
+```python
+def print_prime(n):
+    # print all prime numbers less than n";
+var codeOutput = phi2.Generate(tokenizer, codePrompt, maxLen: 256, temperature: 0f, stopSequences: [ "```"]);
+Console.WriteLine(codeOutput);
 

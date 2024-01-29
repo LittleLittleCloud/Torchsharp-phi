@@ -3,6 +3,27 @@ using static TorchSharp.torch;
 
 public static class Extension
 {
+    public static string Generate(
+        this PhiForCasualLM phi,
+        BPETokenizer tokenizer,
+        string prompt,
+        int maxLen = 128,
+        float temperature = 0.7f,
+        float topP = 0.9f,
+        string[]? stopSequences = null)
+    {
+        var inputIds = tokenizer.Encode(prompt);
+        var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: phi.Device).unsqueeze(0);
+        var attentionMask = torch.ones_like(inputTensor);
+        var stopTokenIds = stopSequences == null ? [[ tokenizer.EosId ]] : stopSequences.Select(x => tokenizer.Encode(x)).ToArray();
+        (var token, var _) = phi.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds);
+
+        var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
+        var output = tokenizer.Decode(tokenIds);
+        return output;
+
+    }
+
     public static void Peek(this Tensor tensor, string id, int n = 10)
     {
         var device = tensor.device;

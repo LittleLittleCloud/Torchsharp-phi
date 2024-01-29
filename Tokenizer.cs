@@ -11,6 +11,8 @@ public class Norm : Normalizer
         // replace newline with Ċ
         normalized = normalized.Replace("\n", "Ċ");
 
+        normalized = normalized.Replace("\r\n", "Ċ");
+
         return new NormalizedString(original, normalized, null, isOneToOneMapping: true);
     }
 }
@@ -31,6 +33,8 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
     private const char spaceReplacement = 'Ġ';
 
     private const char newlineReplacement = 'Ċ';
+
+    private const char carriageReturnReplacement = 'č';
     private string bos = "<s>";
     private string eos = "</s>";
 
@@ -45,6 +49,7 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
         var str = string.Join("", tokens);
         str = str.Replace(spaceReplacement, ' ');
         str = str.Replace(newlineReplacement, '\n');
+        str = str.Replace(carriageReturnReplacement, '\r');
 
         if (str.StartsWith(bos))
         {
@@ -139,6 +144,11 @@ public class BPETokenizer
         return str;
     }
 
+    public int TokenToId(string token)
+    {
+        return this.tokenizer.Model.TokenToId(token) ?? throw new Exception("Failed to get token id");
+    }
+
     public int[] Encode(string input, bool bos = false, bool eos = false)
     {
         if (this.addPrecedingSpace)
@@ -154,7 +164,7 @@ public class BPETokenizer
         {
             tokens = tokens.Concat(new int[] { this.EosId }).ToArray();
         }
-
+        Console.WriteLine($"tokens: {string.Join(',', tokens)}");
         return tokens;
     }
 }

@@ -10,10 +10,12 @@ using static TorchSharp.torch;
 public class PhiForCasualLM
 {
     private readonly PhiModelInferenceWrapper model;
+    private readonly string device = "cpu";
 
-    public PhiForCasualLM(PhiModelInferenceWrapper model)
+    public PhiForCasualLM(PhiModelInferenceWrapper model, string device = "cpu")
     {
         this.model = model;
+        this.device = device;
     }
 
     public PhiModelInferenceWrapper Model => this.model;
@@ -36,8 +38,10 @@ public class PhiForCasualLM
         wrapper = wrapper.to(device);
         wrapper.eval();
 
-        return new PhiForCasualLM(wrapper);
+        return new PhiForCasualLM(wrapper, device);
     }
+
+    public string Device => this.device;
 
     public (
         Tensor, // output token ids [batch_size, sequence_length]
@@ -48,13 +52,27 @@ public class PhiForCasualLM
         float temperature = 0.7f,
         float topP = 0.9f,
         int maxLen = 128,
-        int stopTokenId = 50256,
+        int[][]? stopTokenSequence = null,
         bool echo = false)
     {
         var batch = inputIds.shape[0];
         var device = inputIds.device;
         var minPromptLen = (int)inputIds.shape[1];
         var totalLen = minPromptLen + maxLen;
+        if (stopTokenSequence == null)
+        {
+            stopTokenSequence = [[50256]];
+        }
+        else
+        {
+            // add 50265 to the stopTokenIds
+            stopTokenSequence = stopTokenSequence.Append([50256]).Distinct().ToArray();
+        }
+
+        foreach (var stopSequence in stopTokenSequence)
+        {
+            Console.WriteLine($"stopSequence: {string.Join(',', stopSequence)}");
+        }
 
         using (var _ = torch.no_grad())
         {
@@ -83,12 +101,18 @@ public class PhiForCasualLM
                 nextToken = nextToken.reshape(-1);
                 inputIds = torch.cat([inputIds, nextToken.unsqueeze(1)], dim: -1);
                 attentionMask = torch.cat([attentionMask, attentionMask.new_ones(attentionMask.shape[0], 1)], dim: -1);
-                Console.WriteLine(curPos);
-                // eosReached |= (~attentionMask[.., curPos]) & (nextToken == stopTokenId);
-                // if (eosReached.all().item<bool>())
-                // {
-                //     break;
-                // }
+                foreach (var stopSequence in stopTokenSequence)
+                {
+                    // determine if the last n tokens are the stop sequence
+                    var lastN = inputIds[.., ^stopSequence.Length..];
+                    var lastNMatch = lastN == torch.tensor(stopSequence, device: device);
+                    eosReached |= lastNMatch.all(dim: -1);
+                }
+                Console.WriteLine($"curPos: {curPos}");
+                if (eosReached.all().item<bool>())
+                {
+                    break;
+                }
 
                 prevPos = curPos;
 
