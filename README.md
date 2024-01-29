@@ -6,18 +6,21 @@ This repo contains a torchsharp implementation for phi model.
 To run the Phi model on your local machine, the following prerequisites are required:
 - dotnet 6 or above
 - python 3.8 or above, this is to convert hf model to pytorch format
-- git lfs, this is to download the model file
+- git lfs, this is to download the model file from hugging face
 
 ### Step 1: Get the model weight from huggingface
 To get Phi-2 model weight, run the following command to clone the model repo from huggingface:
 ```bash
 git clone https://huggingface.co/microsoft/phi-2
 ```
-> ![Note]
+> [!Note]
 > Make sure you have git lfs installed
 
-> ![Note]
-> To run Phi-2 model, you need to have at least 12GB GPU memory.
+> [!Note]
+> To run Phi-2 model on GPU, you need to have at least 12GB GPU memory.
+
+> [!Note]
+> Loading other Phi model should be similar but I haven't test them yet. Please create an issue if you have trouble loading other Phi models.
 
 ### Step 2: Convert the model weight to pytorch format
 Use the following script to convert the model weight to pytorch format:
@@ -29,7 +32,7 @@ with open("phi-2.pt", "wb") as f:
     torch.save(state_dict, f)
 ```
 
-And move the `phi-2.pt` file next to the `phi-2` cloned folder.
+And move the `phi-2.pt` file inside the `phi-2` cloned folder.
 After that, your `phi-2` folder should look like this:
 
 ```
@@ -118,16 +121,13 @@ Complete the following code
 def print_prime(n):
     # print all prime numbers less than n
     for i in range(2, n):
-        is_prime = True
         for j in range(2, i):
             if i % j == 0:
-                is_prime = False
                 break
-        if is_prime:
+        else:
             print(i)
 
-n = int(input("Enter a number: "))
-print_prime(n)
+print_prime(10)
 ```
 ### See also
 - [Torchsharp-llama](https://github.com/LittleLittleCloud/Torchsharp-llama): A torchsharp implementation for llama 2 model
@@ -138,5 +138,5 @@ Phi model is a suite of small language models developed by Microsoft Research. U
 - [Phi-1.5](https://huggingface.co/microsoft/phi-1_5), A 1.3B parameter model which demonstrates a nearly state-of-the-art performance among models with less than 10 billion parameters.
 - [Phi-1](https://huggingface.co/microsoft/phi-1), A 1.3B parameter model, specialized for basic Python coding.
 
-> ![Warning]
+> [!Warning]
 > All the Phi-series models does not fined tuned with RLHF, which means the model might generate offensive content. Please use with caution.
