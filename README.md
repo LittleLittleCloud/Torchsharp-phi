@@ -35,7 +35,7 @@ with open("phi-2.pt", "wb") as f:
     torch.save(state_dict, f)
 ```
 > [!Note]
-> You need to install `torch` and `transformer` in your python environment.
+> You need to install `torch` and `transformer` in your python environment before converting model weight
 > ```
 > pip install torch
 > pip uninstall -y transformers && pip install git+https://github.com/huggingface/transformers # install transformer from source to include PhiForCasualLM
