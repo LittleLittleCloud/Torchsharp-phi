@@ -17,7 +17,7 @@ git clone https://huggingface.co/microsoft/phi-2
 > Make sure you have git lfs installed
 
 > [!Note]
-> To run Phi-2 model, you need to have at least 12GB GPU memory.
+> To run Phi-2 model on GPU, you need to have at least 12GB GPU memory.
 
 > [!Note]
 > Loading other Phi model should be similar but I haven't test them yet. Please create an issue if you have trouble loading other Phi models.
