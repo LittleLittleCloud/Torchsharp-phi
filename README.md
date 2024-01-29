@@ -25,12 +25,22 @@ git clone https://huggingface.co/microsoft/phi-2
 ### Step 2: Convert the model weight to pytorch format
 Use the following script to convert the model weight to pytorch format:
 ```python
+from transformers import PhiForCausalLM
+import torch
+
 model = PhiForCausalLM.from_pretrained("microsoft/phi-2")
 model = model.eval()
 # save model
 with open("phi-2.pt", "wb") as f:
     torch.save(state_dict, f)
 ```
+> [!Note]
+> You need to install `torch` and `transformer` in your python environment.
+> ```
+> pip install torch
+> pip uninstall -y transformers && pip install git+https://github.com/huggingface/transformers # install transformer from source to include PhiForCasualLM
+> ```
+
 
 And move the `phi-2.pt` file inside the `phi-2` cloned folder.
 After that, your `phi-2` folder should look like this:
