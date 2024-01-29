@@ -6,7 +6,7 @@ This repo contains a torchsharp implementation for phi model.
 To run the Phi model on your local machine, the following prerequisites are required:
 - dotnet 6 or above
 - python 3.8 or above, this is to convert hf model to pytorch format
-- git lfs, this is to download the model file
+- git lfs, this is to download the model file from hugging face
 
 ### Step 1: Get the model weight from huggingface
 To get Phi-2 model weight, run the following command to clone the model repo from huggingface:
