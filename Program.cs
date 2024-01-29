@@ -30,7 +30,7 @@ var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDTyp
 Console.WriteLine("QA Format");
 var prompt = @"Instruction: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?
 Output:";
-var output = phi2.Generate(tokenizer, prompt, maxLen: 256, temperature: 0f);
+var output = phi2.Generate(tokenizer, prompt, maxLen: 512, temperature: 0.3f);
 Console.WriteLine(output);
 
 // Chat Format
@@ -49,6 +49,6 @@ var codePrompt = @"Complete the following code
 ```python
 def print_prime(n):
     # print all prime numbers less than n";
-var codeOutput = phi2.Generate(tokenizer, codePrompt, maxLen: 256, temperature: 0f, stopSequences: [ "```"]);
+var codeOutput = phi2.Generate(tokenizer, codePrompt, maxLen: 1024, temperature: 0f, stopSequences: [ "```"]);
 Console.WriteLine(codeOutput);
 

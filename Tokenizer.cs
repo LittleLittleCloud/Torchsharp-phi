@@ -8,10 +8,12 @@ public class Norm : Normalizer
     {
         // replace space with Ġ
         var normalized = original.Replace(" ", "Ġ");
+
+        // replace \r\n with Ċ
+        normalized = normalized.Replace("\r\n", "č");
+
         // replace newline with Ċ
         normalized = normalized.Replace("\n", "Ċ");
-
-        normalized = normalized.Replace("\r\n", "Ċ");
 
         return new NormalizedString(original, normalized, null, isOneToOneMapping: true);
     }
@@ -49,7 +51,7 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
         var str = string.Join("", tokens);
         str = str.Replace(spaceReplacement, ' ');
         str = str.Replace(newlineReplacement, '\n');
-        str = str.Replace(carriageReturnReplacement, '\r');
+        str = str.Replace(carriageReturnReplacement.ToString(), Environment.NewLine);
 
         if (str.StartsWith(bos))
         {
