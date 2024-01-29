@@ -32,7 +32,7 @@ model = PhiForCausalLM.from_pretrained("microsoft/phi-2")
 model = model.eval()
 # save model
 with open("phi-2.pt", "wb") as f:
-    torch.save(state_dict, f)
+    torch.save(model.state_dict(keep_vars=False), f)
 ```
 > [!Note]
 > You need to install `torch` and `transformer` in your python environment before running script above.
