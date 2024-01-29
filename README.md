@@ -23,7 +23,7 @@ git clone https://huggingface.co/microsoft/phi-2
 > Loading other Phi model should be similar but I haven't test them yet. Please create an issue if you have trouble loading other Phi models.
 
 ### Step 2: Convert the model weight to pytorch format
-Use the following script to convert the model weight to pytorch format:
+Use the following script to convert the model weight to pytorch format. This is because the model weight from huggingface is in `.safetensor` format and we need to convert it to `torch` format for torchsharp model to load
 ```python
 from transformers import PhiForCausalLM
 import torch
