@@ -121,16 +121,13 @@ Complete the following code
 def print_prime(n):
     # print all prime numbers less than n
     for i in range(2, n):
-        is_prime = True
         for j in range(2, i):
             if i % j == 0:
-                is_prime = False
                 break
-        if is_prime:
+        else:
             print(i)
 
-n = int(input("Enter a number: "))
-print_prime(n)
+print_prime(10)
 ```
 ### See also
 - [Torchsharp-llama](https://github.com/LittleLittleCloud/Torchsharp-llama): A torchsharp implementation for llama 2 model
