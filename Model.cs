@@ -215,7 +215,7 @@ public class PhiAttention : nn.Module<
     private Tensor? cache_k;
     private Tensor? cache_v;
 
-    public PhiAttention(PhiConfig config, int? layerIdx = null)
+    public PhiAttention(PhiConfig config, int? layerIdx = null, int maxBatch = 4, int maxLength = 2048)
         : base(nameof(PhiAttention))
     {
         this.layerIdx = layerIdx;
@@ -250,6 +250,8 @@ public class PhiAttention : nn.Module<
             dim: (int)(this.partialRotaryFactor * this.headDim),
             maxPositionEmbeddings: this.maxPositionEmbeddings,
             baseValue: this.config.RopeTheta);
+        this.cache_k = torch.zeros(maxBatch, this.numKeyValueHeads, maxLength, this.headDim, dtype: config.Dtype);
+        this.cache_v = torch.zeros(maxBatch, this.numKeyValueHeads, maxLength, this.headDim, dtype: config.Dtype);
     }
 
     public override (Tensor, Tensor?, Tensor?) forward(
@@ -260,7 +262,7 @@ public class PhiAttention : nn.Module<
         bool outputAttentions = false)
     {
         using var _ = torch.NewDisposeScope();
-        var batchSize = hiddenStates.shape[0];
+        var batchSize = (int)hiddenStates.shape[0];
         var seqLen = (int)hiddenStates.shape[1];
 
         var queryStates = this.q_proj.forward(hiddenStates);
@@ -291,21 +293,14 @@ public class PhiAttention : nn.Module<
         queryStates = torch.cat([qRot, queryPass], dim: -1);
         // update cache
         keyStates = torch.cat([kRot, keyPass], dim: -1);
-        if (pastKeyValueLength == 0)
-        {
-            this.cache_k = keyStates.cpu().DetachFromDisposeScope();
-            this.cache_v = valueStates.cpu().DetachFromDisposeScope();
-        }
-        else
-        {
-            this.cache_k = torch.cat([this.cache_k!, keyStates.cpu()], dim: -2).DetachFromDisposeScope();
-            this.cache_v = torch.cat([this.cache_v!, valueStates.cpu()], dim: -2).DetachFromDisposeScope();
-        }
-        
-        using var keyStates2 = Utils.RepeatKV(this.cache_k, this.numKeyValueGroups).to(hiddenStates.device);
-        using var valueStates2 = Utils.RepeatKV(this.cache_v, this.numKeyValueGroups).to(hiddenStates.device);
+        this.cache_k[..batchSize, .., pastKeyValueLength..kvSeqLen, ..] = keyStates;
+        this.cache_v[..batchSize, .., pastKeyValueLength..kvSeqLen, ..] = valueStates;
+        keyStates = this.cache_k[..batchSize, .., ..kvSeqLen, ..].to(hiddenStates.device);
+        valueStates = this.cache_v[..batchSize, .., ..kvSeqLen, ..].to(hiddenStates.device);
+        var keyStates2 = Utils.RepeatKV(keyStates, this.numKeyValueGroups).transpose(2, 3);
+        var valueStates2 = Utils.RepeatKV(valueStates, this.numKeyValueGroups);
         // Queries and keys upcast to fp32 is required by Phi-2 to avoid overflow
-        var attnWeights = torch.matmul(queryStates, keyStates2.transpose_(2, 3));
+        var attnWeights = torch.matmul(queryStates, keyStates2);
         attnWeights = attnWeights / Math.Sqrt(this.headDim);
         if (attentionMask is not null)
         {

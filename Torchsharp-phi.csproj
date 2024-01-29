@@ -13,7 +13,8 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" Version="7.0.0-alpha.3" />
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.21.1" />
-    <PackageReference Include="TorchSharp-cuda-linux" Version="0.101.5" />
+    <!-- <PackageReference Include="TorchSharp-cuda-linux" Version="0.101.5" /> -->
+    <PackageReference Include="TorchSharp" Version="0.101.5" />
     <!-- use the following package if you are on windows -->
     <!-- <PackageReference Include="TorchSharp-cuda-windows" Version="0.101.5" /> -->
     <!-- If you don't have GPU, use the following package -->

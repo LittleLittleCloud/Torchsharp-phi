@@ -11,7 +11,7 @@ var libTorch = "/home/xiaoyuz/llama/venv/lib/python3.8/site-packages/torch/lib/l
 NativeLibrary.Load(libTorch);
 
 var phi2Folder = "/home/xiaoyuz/phi-2";
-var device = "cuda";
+var device = "cpu";
 
 if (device == "cuda")
 {
