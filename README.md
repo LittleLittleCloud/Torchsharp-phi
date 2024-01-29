@@ -56,7 +56,7 @@ phi-2
 ```
 
 ### Step 3: Run the model
-Clone this repo and replace the `phi2Folder` folder with the one you just downloaded in [Program.cs](./Program.cs#L13)
+Clone this repo and replace the `phi2Folder` folder with huggingface model weight folder in [Program.cs](./Program.cs#L13)
 
 Then run the following command to start the model:
 ```bash
