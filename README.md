@@ -9,7 +9,7 @@ To run the Phi model on your local machine, the following prerequisites are requ
 - git lfs, this is to download the model file from hugging face
 
 ### Step 1: Get the model weight from huggingface
-To get Phi-2 model weight, run the following command to clone the model repo from huggingface:
+To get Phi-2 model weight, run the following command to download model weight from huggingface:
 ```bash
 git clone https://huggingface.co/microsoft/phi-2
 ```
@@ -23,20 +23,30 @@ git clone https://huggingface.co/microsoft/phi-2
 > Loading other Phi model should be similar but I haven't test them yet. Please create an issue if you have trouble loading other Phi models.
 
 ### Step 2: Convert the model weight to pytorch format
-Use the following script to convert the model weight to pytorch format:
+Use the following script to convert the model weight to pytorch format. This is because the model weight from huggingface is in `.safetensor` format and we need to convert it to `torch` format for torchsharp model to load
 ```python
+from transformers import PhiForCausalLM
+import torch
+
 model = PhiForCausalLM.from_pretrained("microsoft/phi-2")
 model = model.eval()
 # save model
 with open("phi-2.pt", "wb") as f:
-    torch.save(state_dict, f)
+    torch.save(model.state_dict(keep_vars=False), f)
 ```
+> [!Note]
+> You need to install `torch` and `transformer` in your python environment before running script above.
+> ```
+> pip install torch
+> pip uninstall -y transformers && pip install git+https://github.com/huggingface/transformers # install transformer from source to include PhiForCasualLM
+> ```
 
-And move the `phi-2.pt` file inside the `phi-2` cloned folder.
-After that, your `phi-2` folder should look like this:
+
+And move the `phi-2.pt` file to the huggingface model weight folder.
+After that, your huggingface model weight folder should look like this:
 
 ```
-phi-2
+hugginface model weight folder
 ├── config.json # phi model config
 ├── phi-2.pt # converted pytorch model
 ├── vocab.json # vocab for tokenizer
@@ -46,7 +56,7 @@ phi-2
 ```
 
 ### Step 3: Run the model
-Clone this repo and replace the `phi2Folder` folder with the one you just downloaded in [Program.cs](./Program.cs#L13)
+Clone this repo and replace the `phi2Folder` folder with huggingface model weight folder in [Program.cs](./Program.cs#L13)
 
 Then run the following command to start the model:
 ```bash
@@ -129,6 +139,11 @@ def print_prime(n):
 
 print_prime(10)
 ```
+
+### Known issue
+#### BFloat16 doesn't work
+Model doesn't work properly when setting default dtype to bfloat16. This could due to precision loss in linear layer and I'm still investigate it.
+
 ### See also
 - [Torchsharp-llama](https://github.com/LittleLittleCloud/Torchsharp-llama): A torchsharp implementation for llama 2 model
 

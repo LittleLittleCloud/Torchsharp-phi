@@ -23,7 +23,7 @@ public class PhiForCasualLM
     public static PhiForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
-        string weightsName = "phi-2-float16.pt",
+        string weightsName = "phi-2.pt",
         ScalarType defaultDType = ScalarType.Float32,
         string device = "cpu")
     {
