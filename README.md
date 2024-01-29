@@ -129,6 +129,11 @@ def print_prime(n):
 
 print_prime(10)
 ```
+
+### Known issue
+#### BFloat16 doesn't work
+Model doesn't work properly when setting default dtype to bfloat16. This could due to precision loss in linear layer and I'm still investigate it.
+
 ### See also
 - [Torchsharp-llama](https://github.com/LittleLittleCloud/Torchsharp-llama): A torchsharp implementation for llama 2 model
 
