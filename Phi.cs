@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Microsoft.ML.Tokenizers;
+using ShellProgressBar;
 using TorchSharp;
 using TorchSharp.Modules;
 using TorchSharp.PyBridge;
@@ -69,11 +70,6 @@ public class PhiForCasualLM
             stopTokenSequence = stopTokenSequence.Append([50256]).Distinct().ToArray();
         }
 
-        foreach (var stopSequence in stopTokenSequence)
-        {
-            Console.WriteLine($"stopSequence: {string.Join(',', stopSequence)}");
-        }
-
         using (var _ = torch.no_grad())
         {
             var prevPos = 0;
@@ -83,7 +79,13 @@ public class PhiForCasualLM
             {
                 (logits, var _, var _) = this.model.forward(inputIds, attentionMask, prevPos);
             }
-
+            var progressBarOption = new ProgressBarOptions {
+                ForegroundColor = ConsoleColor.Yellow,
+                BackgroundColor = ConsoleColor.DarkGray,
+                ProgressCharacter = '─',
+                ProgressBarOnBottom = true
+            };
+            using var pBar = new ProgressBar(maxLen, "Generating", progressBarOption);
             for (int curPos = minPromptLen; curPos != totalLen; curPos++)
             {
                 (logits, var _, var _) = this.model.forward(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], prevPos);
@@ -108,11 +110,15 @@ public class PhiForCasualLM
                     var lastNMatch = lastN == torch.tensor(stopSequence, device: device);
                     eosReached |= lastNMatch.all(dim: -1);
                 }
-                Console.WriteLine($"curPos: {curPos}");
                 if (eosReached.all().item<bool>())
                 {
+                    pBar.WriteLine("EOS reached");
+                    pBar.Tick(maxLen);
                     break;
                 }
+
+                var message = $"Generating Token {curPos}/{maxLen}";
+                pBar.Tick(curPos, message);
 
                 prevPos = curPos;
 

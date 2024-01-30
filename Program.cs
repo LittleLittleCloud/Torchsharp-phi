@@ -11,7 +11,7 @@ var libTorch = "/home/xiaoyuz/llama/venv/lib/python3.8/site-packages/torch/lib/l
 NativeLibrary.Load(libTorch);
 
 var phi2Folder = "/home/xiaoyuz/phi-2";
-var device = "cpu";
+var device = "cuda";
 
 if (device == "cuda")
 {
@@ -22,33 +22,23 @@ var defaultType = ScalarType.Float32;
 torch.set_default_dtype(defaultType);
 torch.manual_seed(1);
 
+Console.WriteLine("Loading Phi2");
+var timer = System.Diagnostics.Stopwatch.StartNew();
 var tokenizer = BPETokenizer.FromPretrained(phi2Folder);
 var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, weightsName: "phi-2-float32.pt");
 
+timer.Stop();
+Console.WriteLine($"Phi2 loaded in {timer.ElapsedMilliseconds / 1000} s");
+
+// wait for user to press enter
+Console.WriteLine("Press enter to continue");
+Console.ReadLine();
 
 // QA Format
-Console.WriteLine("QA Format");
-var prompt = @"Instruction: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?
-Output:";
-var output = phi2.Generate(tokenizer, prompt, maxLen: 512, temperature: 0.3f);
+int maxLen = 512;
+float temperature = 0.3f;
+Console.WriteLine($"QA Format: maxLen: {maxLen} temperature: {temperature}");
+var prompt = "Instruct: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?\nOutput:";
+Console.WriteLine(prompt);
+var output = phi2.Generate(tokenizer, prompt, maxLen: maxLen, temperature: temperature);
 Console.WriteLine(output);
-
-// Chat Format
-Console.WriteLine("Chat Format");
-var chatPrompt = @"Alice: I don't know why, I'm struggling to maintain focus while studying. Any suggestions?
-Bob: Well, have you tried creating a study schedule and sticking to it?
-Alice: Yes, I have, but it doesn't seem to help much.
-Bob: Hmm, maybe you should try studying in a quiet environment, like the library.
-Alice:";
-var chatOutput = phi2.Generate(tokenizer, chatPrompt, maxLen: 256, temperature: 0.3f, stopSequences: [ "Bob:"]);
-Console.WriteLine(chatOutput);
-
-// Code Format
-Console.WriteLine("Code Format");
-var codePrompt = @"Complete the following code
-```python
-def print_prime(n):
-    # print all prime numbers less than n";
-var codeOutput = phi2.Generate(tokenizer, codePrompt, maxLen: 1024, temperature: 0f, stopSequences: [ "```"]);
-Console.WriteLine(codeOutput);
-

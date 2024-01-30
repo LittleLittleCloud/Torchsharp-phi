@@ -66,7 +66,7 @@ public static class Extension
                 tensor = tensor.to_type(ScalarType.Float32);
             }
 
-            TensorExtensionMethods.Load(ref tensor, reader, skip: false);
+            TensorExtensionMethods.Load(ref tensor!, reader, skip: false);
             
             // convert type to bf16 if type is float
             tensor = tensor!.to_type(originalType);
