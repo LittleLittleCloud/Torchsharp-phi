@@ -1,0 +1,22 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/universal
+{
+	"name": ".NET 8 SDK + Python",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/dotnet/sdk:8.0",
+	"features": {
+		"ghcr.io/devcontainers/features/python": {
+			"version": "3.10"
+		}
+	},
+	// Configure tool-specific properties.
+	"customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-dotnettools.dotnet-interactive-vscode",
+				"ms-dotnettools.csdevkit",
+                "ms-python.python"
+            ]
+        }		
+	}
+}
