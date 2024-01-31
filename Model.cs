@@ -356,7 +356,7 @@ public class PhiAttention : nn.Module<
         }
         attnWeights = nn.functional.softmax(attnWeights, dim: -1);
         attnWeights = nn.functional.dropout(attnWeights, p: this.attentionDropout);
-        var attnOutput = torch.matmul(attnWeights, valueStates2.to_type(float32)).to_type(torch.bfloat16);
+        var attnOutput = torch.matmul(attnWeights, valueStates2.to_type(float32)).to_type(hiddenStates.dtype);
         attnOutput = attnOutput.transpose_(1, 2).contiguous();
         attnOutput = attnOutput.reshape(batchSize, seqLen, this.hiddenSize);
         var result = this.dense.forward(attnOutput);

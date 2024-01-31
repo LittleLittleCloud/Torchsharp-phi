@@ -18,27 +18,27 @@ if (device == "cuda")
     torch.InitializeDeviceType(DeviceType.CUDA);
     torch.cuda.is_available().Should().BeTrue();
 }
-var defaultType = ScalarType.Float32;
+
+var defaultType = ScalarType.Float16;
 torch.set_default_dtype(defaultType);
 torch.manual_seed(1);
 
-Console.WriteLine("Loading Phi2");
+Console.WriteLine("Loading Phi2 from huggingface model weight folder");
 var timer = System.Diagnostics.Stopwatch.StartNew();
-var tokenizer = BPETokenizer.FromPretrained(phi2Folder);
-var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, weightsName: "phi-2-float32.pt");
+var phi2 = PhiForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, checkPointName: "model.safetensors.index.json");
 
 timer.Stop();
 Console.WriteLine($"Phi2 loaded in {timer.ElapsedMilliseconds / 1000} s");
 
-// wait for user to press enter
-Console.WriteLine("Press enter to continue");
-Console.ReadLine();
-
 // QA Format
 int maxLen = 512;
-float temperature = 0.3f;
+float temperature = 0.0f;
 Console.WriteLine($"QA Format: maxLen: {maxLen} temperature: {temperature}");
-var prompt = "Instruct: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom?\nOutput:";
+var prompt = "Instruct: A skier slides down a frictionless slope of height 40m and length 80m, what's the skier's speed at the bottom, think step by step.\nOutput:";
+// wait for user to press enter
+Console.WriteLine($"Prompt: {prompt}");
+Console.WriteLine("Press enter to continue inferencing QA format");
+Console.ReadLine();
+
 Console.WriteLine(prompt);
-var output = phi2.Generate(tokenizer, prompt, maxLen: maxLen, temperature: temperature);
-Console.WriteLine(output);
+phi2.Generate(prompt, maxLen: maxLen, temperature: temperature);

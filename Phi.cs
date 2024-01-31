@@ -12,19 +12,23 @@ public class PhiForCasualLM
 {
     private readonly PhiModelInferenceWrapper model;
     private readonly string device = "cpu";
+    private readonly BPETokenizer tokenizer;
 
-    public PhiForCasualLM(PhiModelInferenceWrapper model, string device = "cpu")
+    public PhiForCasualLM(PhiModelInferenceWrapper model, BPETokenizer tokenizer, string device = "cpu")
     {
         this.model = model;
         this.device = device;
+        this.tokenizer = tokenizer;
     }
 
     public PhiModelInferenceWrapper Model => this.model;
 
+    public BPETokenizer Tokenizer => this.tokenizer;
+
     public static PhiForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
-        string weightsName = "phi-2.pt",
+        string checkPointName = "phi-2.pt",
         ScalarType defaultDType = ScalarType.Float32,
         string device = "cpu")
     {
@@ -33,13 +37,12 @@ public class PhiForCasualLM
         modelConfig.Dtype = defaultDType;
         var phi = new PhiModel(modelConfig);
         var wrapper = new PhiModelInferenceWrapper(phi);
-        var weightPath = Path.Join(modelFolder, weightsName);
         var loadedParameters = new Dictionary<string, bool>();
-        wrapper.load_py(weightPath, strict: true, loadedParameters: loadedParameters);
+        wrapper.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: true, loadedParameters: loadedParameters);
         wrapper = wrapper.to(device);
         wrapper.eval();
-
-        return new PhiForCasualLM(wrapper, device);
+        var tokenzier = BPETokenizer.FromPretrained(modelFolder);
+        return new PhiForCasualLM(wrapper, tokenzier, device);
     }
 
     public string Device => this.device;
@@ -79,13 +82,6 @@ public class PhiForCasualLM
             {
                 (logits, var _, var _) = this.model.forward(inputIds, attentionMask, prevPos);
             }
-            var progressBarOption = new ProgressBarOptions {
-                ForegroundColor = ConsoleColor.Yellow,
-                BackgroundColor = ConsoleColor.DarkGray,
-                ProgressCharacter = '─',
-                ProgressBarOnBottom = true
-            };
-            using var pBar = new ProgressBar(maxLen, "Generating", progressBarOption);
             for (int curPos = minPromptLen; curPos != totalLen; curPos++)
             {
                 (logits, var _, var _) = this.model.forward(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], prevPos);
@@ -112,13 +108,16 @@ public class PhiForCasualLM
                 }
                 if (eosReached.all().item<bool>())
                 {
-                    pBar.WriteLine("EOS reached");
-                    pBar.Tick(maxLen);
+                    // pBar.WriteLine("EOS reached");
+                    // pBar.Tick(maxLen);
                     break;
                 }
 
                 var message = $"Generating Token {curPos}/{maxLen}";
-                pBar.Tick(curPos, message);
+                // pBar.Tick(curPos, message);
+                var nextTokenIds = nextToken.to_type(ScalarType.Int32).data<int>().ToArray();
+                var nextTokenStr = this.tokenizer.Decode(nextTokenIds);
+                Console.Write(nextTokenStr);
 
                 prevPos = curPos;
 
