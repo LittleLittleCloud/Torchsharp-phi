@@ -4,31 +4,6 @@ using TorchSharp;
 using TorchSharp.Modules;
 using static TorchSharp.torch;
 
-// def __init__(
-//     self,
-//     vocab_size=51200,
-//     hidden_size=2048,
-//     intermediate_size=8192,
-//     num_hidden_layers=24,
-//     num_attention_heads=32,
-//     num_key_value_heads=None,
-//     resid_pdrop=0.0,
-//     embd_pdrop=0.0,
-//     attention_dropout=0.0,
-//     hidden_act="gelu_new",
-//     max_position_embeddings=2048,
-//     initializer_range=0.02,
-//     layer_norm_eps=1e-5,
-//     use_cache=True,
-//     tie_word_embeddings=False,
-//     rope_theta=10000.0,
-//     rope_scaling=None,
-//     partial_rotary_factor=0.5,
-//     qk_layernorm=False,
-//     bos_token_id=1,
-//     eos_token_id=2,
-//     **kwargs,
-// ):
 public class PhiConfig
 {
     [JsonPropertyName("vocab_size")]

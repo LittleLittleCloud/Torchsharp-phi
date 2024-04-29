@@ -6,11 +6,7 @@ using static TorchSharp.torch;
 // Dynamic loading libtorch because Cuda 12 only support GPU driver >= 520
 // And I can't upgrade GPU driver because it's a cloud machine.
 
-// Comment out the following two line if your machine support Cuda 12
-var libTorch = "/home/xiaoyuz/llama/venv/lib/python3.8/site-packages/torch/lib/libtorch.so";
-NativeLibrary.Load(libTorch);
-
-var phi2Folder = "/home/xiaoyuz/phi-2";
+var phi2Folder = @"C:\Users\xiaoyuz\source\repos\phi-2";
 var device = "cuda";
 
 if (device == "cuda")
