@@ -8,13 +8,13 @@ using TorchSharp.Modules;
 using TorchSharp.PyBridge;
 using static TorchSharp.torch;
 
-public class PhiForCasualLM
+public class Phi2ForCasualLM
 {
     private readonly PhiModelInferenceWrapper model;
     private readonly string device = "cpu";
     private readonly BPETokenizer tokenizer;
 
-    public PhiForCasualLM(PhiModelInferenceWrapper model, BPETokenizer tokenizer, string device = "cpu")
+    public Phi2ForCasualLM(PhiModelInferenceWrapper model, BPETokenizer tokenizer, string device = "cpu")
     {
         this.model = model;
         this.device = device;
@@ -25,7 +25,7 @@ public class PhiForCasualLM
 
     public BPETokenizer Tokenizer => this.tokenizer;
 
-    public static PhiForCasualLM FromPretrained(
+    public static Phi2ForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
         string checkPointName = "phi-2.pt",
@@ -33,16 +33,16 @@ public class PhiForCasualLM
         string device = "cpu")
     {
         var config = Path.Join(modelFolder, configName);
-        var modelConfig = JsonSerializer.Deserialize<PhiConfig>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
+        var modelConfig = JsonSerializer.Deserialize<Phi2Config>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
         modelConfig.Dtype = defaultDType;
-        var phi = new PhiModel(modelConfig);
+        var phi = new Phi2Model(modelConfig);
         var wrapper = new PhiModelInferenceWrapper(phi);
         var loadedParameters = new Dictionary<string, bool>();
         wrapper.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: true, loadedParameters: loadedParameters);
         wrapper = wrapper.to(device);
         wrapper.eval();
         var tokenzier = BPETokenizer.FromPretrained(modelFolder);
-        return new PhiForCasualLM(wrapper, tokenzier, device);
+        return new Phi2ForCasualLM(wrapper, tokenzier, device);
     }
 
     public string Device => this.device;

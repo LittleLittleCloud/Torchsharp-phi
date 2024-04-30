@@ -4,7 +4,7 @@ using static TorchSharp.torch;
 public static class Extension
 {
     public static string Generate(
-        this PhiForCasualLM phi,
+        this Phi2ForCasualLM phi,
         string prompt,
         int maxLen = 128,
         float temperature = 0.7f,
