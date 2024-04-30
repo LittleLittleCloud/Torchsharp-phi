@@ -8,33 +8,14 @@ using static TorchSharp.torch;
 
 public class Phi3Config
 {
-    //vocab_size=32064,
-    //hidden_size=3072,
-    //intermediate_size=8192,
-    //num_hidden_layers=32,
-    //num_attention_heads=32,
-    //num_key_value_heads=None,
-    //resid_pdrop=0.0,
-    //embd_pdrop=0.0,
-    //attention_dropout=0.0,
-    //hidden_act="silu",
-    //max_position_embeddings=4096,
-    //original_max_position_embeddings=4096,
-    //initializer_range=0.02,
-    //rms_norm_eps=1e-5,
-    //use_cache=True,
-    //tie_word_embeddings=False,
-    //rope_theta=10000.0,
-    //rope_scaling=None,
-    //bos_token_id=1,
-    //eos_token_id=32000,
-    //pad_token_id=32000,
-    //sliding_window=None,
     [JsonPropertyName("vocab_size")]
     public int VocabSize { get; set; } = 32064;
 
     [JsonPropertyName("hidden_size")]
     public int HiddenSize { get; set; } = 3072;
+
+    [JsonPropertyName("rms_norm_eps")]
+    public float RmsNormEps { get; set; } = 1e-5f;
 
     [JsonPropertyName("intermediate_size")]
     public int IntermediateSize { get; set; } = 8192;
@@ -69,9 +50,6 @@ public class Phi3Config
     [JsonPropertyName("initializer_range")]
     public double InitializerRange { get; set; } = 0.02;
 
-    [JsonPropertyName("rms_norm_eps")]
-    public double LayerNormEps { get; set; } = 1e-5;
-
     [JsonPropertyName("use_cache")]
     public bool UseCache { get; set; } = true;
 
@@ -103,4 +81,6 @@ public class Phi3Config
     public int? SlidingWindow { get; set; } = null;
 
     public ScalarType DType { get; set; } = ScalarType.BFloat16;
+
+    public string AttnImplementation { get; set; } = "eager";
 }

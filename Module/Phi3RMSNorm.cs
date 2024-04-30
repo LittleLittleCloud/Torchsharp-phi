@@ -17,14 +17,15 @@ public class Phi3RMSNorm : torch.nn.Module<Tensor, Tensor>
 
     public Phi3RMSNorm(
         int hiddenSize,
-        float eps = 1e-6f)
+        float eps = 1e-6f,
+        ScalarType dtype = ScalarType.Float32)
         : base(nameof(Phi3RMSNorm))
     {
         this._dim = hiddenSize;
         this._eps = eps;
 
         // the gamma scalar
-        this.weight = torch.nn.Parameter(torch.ones(this._dim, dtype: ScalarType.Float32));
+        this.weight = torch.nn.Parameter(torch.ones(this._dim, dtype: dtype));
     }
 
     private Tensor Norm(Tensor x)

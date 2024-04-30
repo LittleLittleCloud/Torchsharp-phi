@@ -36,7 +36,26 @@ public class Phi3AttentionInput
     public bool output_attentions { get; set; } = false;
 }
 
-public class Phi3Attention : nn.Module<Phi3AttentionInput, (Tensor, Tensor?, IKVCache?)>
+public class Phi3AttentionOutput
+{
+    public Phi3AttentionOutput(
+        Tensor hidden_states,
+        Tensor? attentions = null,
+        IKVCache? cache = null)
+    {
+        this.hidden_states = hidden_states;
+        this.attentions = attentions;
+        this.cache = cache;
+    }
+
+    public Tensor hidden_states { get; set; }
+
+    public Tensor? attentions { get; set; }
+
+    public IKVCache? cache { get; set; }
+}
+
+public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
 {
     private readonly Phi3Config config;
     private readonly int layer_idx;
@@ -77,8 +96,8 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, (Tensor, Tensor?, IKV
         (this.head_dim * this.num_heads).Should().Be(this.hidden_size, "hidden_size must be divisible by num_heads");
 
         var op_size = this.num_heads * this.head_dim + 2 * (this.num_key_value_heads * this.head_dim);
-        this.o_proj = nn.Linear(this.num_heads * this.head_dim, this.hidden_size, hasBias: false);
-        this.qkv_proj = nn.Linear(this.hidden_size, op_size, hasBias: false);
+        this.o_proj = nn.Linear(this.num_heads * this.head_dim, this.hidden_size, hasBias: false, dtype: config.DType);
+        this.qkv_proj = nn.Linear(this.hidden_size, op_size, hasBias: false, dtype: config.DType);
         this._init_rope();
     }
 
@@ -94,7 +113,7 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, (Tensor, Tensor?, IKV
         }
     }
 
-    public override (Tensor, Tensor?, IKVCache?) forward(Phi3AttentionInput input)
+    public override Phi3AttentionOutput forward(Phi3AttentionInput input)
     {
         var hidden_states = input.hidden_states;
         var positionIds = input.position_ids;
@@ -158,6 +177,6 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, (Tensor, Tensor?, IKV
 
         attn_output = this.o_proj.forward(attn_output);
 
-        return (attn_output, output_attentions ? attn_weights : null, past_key_value);
+        return new(attn_output, output_attentions ? attn_weights : null, past_key_value);
     }
 }
