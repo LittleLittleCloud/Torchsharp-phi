@@ -1,6 +1,7 @@
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using Microsoft.ML.Tokenizers;
+using Phi;
 
 public class Norm : Normalizer
 {
@@ -67,12 +68,12 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
     }
 }
 
-public class BPETokenizer
+public class Phi2Tokenizer : ITokenizer
 {
     private Tokenizer tokenizer;
     private bool addPrecedingSpace;
 
-    public BPETokenizer(
+    public Phi2Tokenizer(
         string vocabPath,
         string mergesPath,
         bool addPrecedingSpace,
@@ -89,7 +90,7 @@ public class BPETokenizer
         this.tokenizer.Decoder = decoder;
     }
 
-    public static BPETokenizer FromPretrained(
+    public static Phi2Tokenizer FromPretrained(
         string folder,
         string vocabFile = "vocab.json",
         string mergesFile = "merges.txt",
@@ -124,7 +125,7 @@ public class BPETokenizer
             uknToken = specialTokenMap["unk_token"];
         }
 
-        return new BPETokenizer(vocabPath, mergesPath, addPrecedingSpace, uknToken, bosToken, eosToken);
+        return new Phi2Tokenizer(vocabPath, mergesPath, addPrecedingSpace, uknToken, bosToken, eosToken);
     }
 
     public int VocabSize => this.tokenizer.Model.GetVocabSize();

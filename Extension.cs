@@ -1,49 +1,97 @@
+using Phi.Pipeline;
+using System.Text;
 using TorchSharp;
 using static TorchSharp.torch;
 
 public static class Extension
 {
     public static string Generate(
-        this PhiForCasualLM phi,
+        this CasualLMPipeline pipeline,
         string prompt,
         int maxLen = 128,
         float temperature = 0.7f,
         float topP = 0.9f,
-        string[]? stopSequences = null)
+        string[]? stopSequences = null,
+        string device = "cpu",
+        bool bos = true,
+        bool eos = false,
+        bool echo = false)
     {
-        var inputIds = phi.Tokenizer.Encode(prompt);
-        var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: phi.Device).unsqueeze(0);
+        var inputIds = pipeline.Tokenizer.Encode(prompt, bos, eos);
+        var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
         var attentionMask = torch.ones_like(inputTensor);
-        var stopTokenIds = stopSequences == null ? [[ phi.Tokenizer.EosId ]] : stopSequences.Select(x => phi.Tokenizer.Encode(x)).ToArray();
-        (var token, var _) = phi.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds);
+        var stopTokenIds = stopSequences == null ? [[ pipeline.Tokenizer.EosId ]] : stopSequences.Select(x => pipeline.Tokenizer.Encode(x, bos, eos)).ToArray();
+        (var token, var _) = pipeline.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds, echo: echo);
 
         var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
-        var output = phi.Tokenizer.Decode(tokenIds);
+        var output = pipeline.Tokenizer.Decode(tokenIds);
         return output;
 
     }
 
-    public static void Peek(this Tensor tensor, string id, int n = 10)
+    public static string Peek(this Tensor tensor, string id, int n = 10)
     {
         var device = tensor.device;
+        var dtype = tensor.dtype;
+        // if type is fp16, convert to fp32
+        if (tensor.dtype == ScalarType.Float16)
+        {
+            tensor = tensor.to_type(ScalarType.Float32);
+        }
         tensor = tensor.cpu();
         var shapeString = string.Join(',', tensor.shape);
-        var dataString = string.Join(',', tensor.reshape(-1)[..n].to_type(ScalarType.Float32).data<float>().ToArray());
         var tensor_1d = tensor.reshape(-1);
         var tensor_index = torch.arange(tensor_1d.shape[0], dtype: ScalarType.Float32).to(tensor_1d.device).sqrt();
         var avg = (tensor_1d * tensor_index).sum();
         avg = avg / tensor_1d.sum();
-        Console.WriteLine($"{id}: sum: {avg.ToSingle()}  dtype: {tensor.dtype} shape: [{shapeString}] device: {device} has grad? {tensor.requires_grad}");
+        // keep four decimal places
+        avg = avg.round(4);
+        var str = $"{id}: sum: {avg.ToSingle()}  dtype: {dtype} shape: [{shapeString}]";
+
+        Console.WriteLine(str);
+
+        return str;
     }
 
-    public static void Peek(this nn.Module model)
+    public static string Peek(this nn.Module model)
     {
+        var sb = new StringBuilder();
         var state_dict = model.state_dict();
         // preview state_dict
-        foreach (var (key, value) in state_dict.OrderBy(x => x.Key))
+        int i = 0;
+        foreach (var (key, value) in state_dict.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
-            value.Peek(key);
+            var str = value.Peek(key);
+            sb.AppendLine($"{i}: {str}");
+            i++;
         }
+
+        var res = sb.ToString();
+
+        //Console.WriteLine(res);
+
+        return res;
+    }
+
+    public static string Peek_Shape(this nn.Module model)
+    {
+        var sb = new StringBuilder();
+        var state_dict = model.state_dict();
+        // preview state_dict
+        int i = 0;
+        foreach (var (key, value) in state_dict.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            // shape str: [x, y, z]
+            var shapeStr = string.Join(", ", value.shape);
+            sb.AppendLine($"{i}: {key} shape: [{shapeStr}]");
+            i++;
+        }
+
+        var res = sb.ToString();
+
+        Console.WriteLine(res);
+
+        return res;
     }
 
     public static void LoadStateDict(this Dictionary<string, Tensor> dict, string location)

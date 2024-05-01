@@ -1,51 +1,33 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using FluentAssertions;
-using Microsoft.ML.Tokenizers;
-using ShellProgressBar;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using TorchSharp;
-using TorchSharp.Modules;
-using TorchSharp.PyBridge;
 using static TorchSharp.torch;
 
-public class PhiForCasualLM
+namespace Phi.Pipeline;
+
+public class CasualLMPipeline
 {
-    private readonly PhiModelInferenceWrapper model;
-    private readonly string device = "cpu";
-    private readonly BPETokenizer tokenizer;
+    private readonly ITokenizer tokenizer;
+    private readonly nn.Module<CasualLMModelInput, CasualLMModelOutput> model;
 
-    public PhiForCasualLM(PhiModelInferenceWrapper model, BPETokenizer tokenizer, string device = "cpu")
-    {
-        this.model = model;
-        this.device = device;
-        this.tokenizer = tokenizer;
-    }
-
-    public PhiModelInferenceWrapper Model => this.model;
-
-    public BPETokenizer Tokenizer => this.tokenizer;
-
-    public static PhiForCasualLM FromPretrained(
-        string modelFolder,
-        string configName = "config.json",
-        string checkPointName = "phi-2.pt",
-        ScalarType defaultDType = ScalarType.Float32,
+    public CasualLMPipeline(
+        ITokenizer tokenizer,
+        nn.Module<CasualLMModelInput, CasualLMModelOutput> model,
         string device = "cpu")
     {
-        var config = Path.Join(modelFolder, configName);
-        var modelConfig = JsonSerializer.Deserialize<PhiConfig>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
-        modelConfig.Dtype = defaultDType;
-        var phi = new PhiModel(modelConfig);
-        var wrapper = new PhiModelInferenceWrapper(phi);
-        var loadedParameters = new Dictionary<string, bool>();
-        wrapper.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: true, loadedParameters: loadedParameters);
-        wrapper = wrapper.to(device);
-        wrapper.eval();
-        var tokenzier = BPETokenizer.FromPretrained(modelFolder);
-        return new PhiForCasualLM(wrapper, tokenzier, device);
+        this.tokenizer = tokenizer;
+        this.model = model;
+        this.Device = device;
     }
 
-    public string Device => this.device;
+    public ITokenizer Tokenizer => this.tokenizer;
+
+    public nn.Module<CasualLMModelInput, CasualLMModelOutput> Model => this.model;
+
+    public Device Device { get; }
 
     public (
         Tensor, // output token ids [batch_size, sequence_length]
@@ -65,12 +47,11 @@ public class PhiForCasualLM
         var totalLen = minPromptLen + maxLen;
         if (stopTokenSequence == null)
         {
-            stopTokenSequence = [[50256]];
+            stopTokenSequence = [[this.tokenizer.EosId]];
         }
         else
         {
-            // add 50265 to the stopTokenIds
-            stopTokenSequence = stopTokenSequence.Append([50256]).Distinct().ToArray();
+            stopTokenSequence = stopTokenSequence.Append([this.tokenizer.EosId]).Distinct().ToArray();
         }
 
         using (var _ = torch.no_grad())
@@ -78,13 +59,18 @@ public class PhiForCasualLM
             var prevPos = 0;
             var eosReached = torch.tensor(new bool[batch], device: device);
             torch.Tensor? logits = default;
+            var cache = new DynamicKVCache();
             if (minPromptLen == totalLen)
             {
-                (logits, var _, var _) = this.model.forward(inputIds, attentionMask, prevPos);
+                var input = new CasualLMModelInput(inputIds, attentionMask, past_key_values_length: 0);
+                var output = this.model.forward(input);
+                logits = output.logits;
             }
             for (int curPos = minPromptLen; curPos != totalLen; curPos++)
             {
-                (logits, var _, var _) = this.model.forward(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], prevPos);
+                var input = new CasualLMModelInput(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], past_key_values_length: prevPos);
+                var output = this.model.forward(input);
+                logits = output.logits;
                 torch.Tensor nextToken;
                 if (temperature > 0)
                 {
