@@ -11,7 +11,7 @@ using static TorchSharp.torch;
 
 namespace Phi;
 
-public class Phi3ForCasualLM : nn.Module<Phi3ModelInput, (Tensor, Phi3ModelOutput)>
+public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput>
 {
     private readonly Phi3Config config;
     private readonly Phi3Model model;
@@ -27,13 +27,14 @@ public class Phi3ForCasualLM : nn.Module<Phi3ModelInput, (Tensor, Phi3ModelOutpu
         this.RegisterComponents();
     }
 
-    public override (Tensor, Phi3ModelOutput) forward(Phi3ModelInput input)
+    public override CasualLMModelOutput forward(CasualLMModelInput input)
     {
         var outputs = this.model.forward(input);
         var logits = this.lm_head.forward(outputs.last_hidden_state);
         logits = logits.to_type(ScalarType.Float32);
+        outputs.legits = logits;
 
-        return (logits, outputs);
+        return outputs;
     }
 
     public static Phi3ForCasualLM FromPretrained(

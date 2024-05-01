@@ -59,10 +59,25 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
     }
 }
 
+public interface ITokenizer
+{
+    public int VocabSize { get; }
+
+    public int PadId { get; }
+
+    public int BosId { get; }
+
+    public int EosId { get; }
+
+    public string Decode(int[] input);
+
+    public int[] Encode(string input, bool bos, bool eos);
+}
+
 /// <summary>
 /// Copied from https://github.com/LittleLittleCloud/Torchsharp-llama/blob/main/ITokenizer.cs
 /// </summary>
-public class LLama2Tokenizer
+public class LLama2Tokenizer : ITokenizer
 {
     private Tokenizer tokenizer;
     private bool addPrecedingSpace;

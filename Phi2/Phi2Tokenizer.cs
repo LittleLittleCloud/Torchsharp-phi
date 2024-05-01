@@ -1,6 +1,7 @@
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using Microsoft.ML.Tokenizers;
+using Phi;
 
 public class Norm : Normalizer
 {
@@ -67,7 +68,7 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
     }
 }
 
-public class Phi2Tokenizer
+public class Phi2Tokenizer : ITokenizer
 {
     private Tokenizer tokenizer;
     private bool addPrecedingSpace;

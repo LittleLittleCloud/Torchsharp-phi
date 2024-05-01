@@ -5,13 +5,13 @@ using static TorchSharp.torch;
 
 namespace Phi;
 
-public class Phi3ModelInput
+public class CasualLMModelInput
 {
-    public Phi3ModelInput(
+    public CasualLMModelInput(
         Tensor input_ids,
         Tensor? attention_mask = null,
         Tensor? position_ids = null,
-        IKVCache? past_key_values = null,
+        int past_key_values_length = 0,
         Tensor? inputs_embeds = null,
         bool use_cache = false,
         bool output_attentions = false,
@@ -20,7 +20,7 @@ public class Phi3ModelInput
         this.input_ids = input_ids;
         this.attention_mask = attention_mask;
         this.position_ids = position_ids;
-        this.past_key_values = past_key_values;
+        this.past_key_values_length = past_key_values_length;
         this.inputs_embeds = inputs_embeds;
         this.use_cache = use_cache;
         this.output_attentions = output_attentions;
@@ -33,7 +33,7 @@ public class Phi3ModelInput
 
     public Tensor? position_ids { get; set; }
 
-    public IKVCache? past_key_values { get; set; }
+    public int past_key_values_length { get; set; }
 
     public Tensor? inputs_embeds { get; set; }
 
@@ -44,19 +44,23 @@ public class Phi3ModelInput
     public bool output_hidden_states { get; set; }
 }
 
-public class Phi3ModelOutput
+public class CasualLMModelOutput
 {
-    public Phi3ModelOutput(
+    public CasualLMModelOutput(
         Tensor last_hidden_state,
+        Tensor? legits = null,
         Tensor[]? hidden_states = null,
         Tensor[]? attentions = null,
         IKVCache? past_key_values = null)
     {
         this.last_hidden_state = last_hidden_state;
         this.hidden_states = hidden_states;
+        this.legits = legits;
         this.attentions = attentions;
         this.past_key_values = past_key_values;
     }
+
+    public Tensor legits { get; set; }
 
     public Tensor last_hidden_state { get; set; }
 
@@ -66,7 +70,7 @@ public class Phi3ModelOutput
 
     public IKVCache? past_key_values { get; set; }
 }
-public class Phi3Model : nn.Module<Phi3ModelInput, Phi3ModelOutput>
+public class Phi3Model : nn.Module<CasualLMModelInput, CasualLMModelOutput>
 {
     private readonly Phi3Config config;
     private readonly int padding_idx;
@@ -96,7 +100,7 @@ public class Phi3Model : nn.Module<Phi3ModelInput, Phi3ModelOutput>
         this.RegisterComponents();
     }
 
-    public override Phi3ModelOutput forward(Phi3ModelInput input)
+    public override CasualLMModelOutput forward(CasualLMModelInput input)
     {
         var output_attentions = input.output_attentions;
         var output_hidden_states = input.output_hidden_states;
@@ -128,12 +132,8 @@ public class Phi3Model : nn.Module<Phi3ModelInput, Phi3ModelOutput>
             throw new ArgumentException("Either input_ids or inputs_embeds must be set");
         }
 
-        var past_key_values_length = 0;
-
-        if (input.past_key_values is not null)
-        {
-            past_key_values_length = input.past_key_values.GetUsableLength(seq_length);
-        }
+        var past_key_values_length = input.past_key_values_length;
+        var past_key_value_cache = new DynamicKVCache();
 
         if (position_ids is null)
         {
@@ -166,7 +166,7 @@ public class Phi3Model : nn.Module<Phi3ModelInput, Phi3ModelOutput>
                 all_hidden_states.Add(hidden_states);
             }
 
-            var decoderInput = new Phi3DecoderLayerInput(hidden_states, attention_mask!, position_ids, input.past_key_values, output_attentions);
+            var decoderInput = new Phi3DecoderLayerInput(hidden_states, attention_mask!, position_ids, past_key_value_cache, output_attentions);
             var layerOutput = layer.forward(decoderInput);
             hidden_states = layerOutput.hidden_states;
             if (output_attentions && layerOutput.attentions is not null)
@@ -181,7 +181,7 @@ public class Phi3Model : nn.Module<Phi3ModelInput, Phi3ModelOutput>
             all_hidden_states.Add(hidden_states);
         }
 
-        return new Phi3ModelOutput(hidden_states, all_hidden_states.ToArray(), all_attentions.ToArray(), input.past_key_values);
+        return new CasualLMModelOutput(last_hidden_state: hidden_states, hidden_states: all_hidden_states.ToArray(), attentions: all_attentions.ToArray(), past_key_values: past_key_value_cache);
     }
 
 }
