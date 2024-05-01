@@ -21,7 +21,7 @@ torch.manual_seed(1);
 
 Console.WriteLine("Loading Phi2 from huggingface model weight folder");
 var timer = System.Diagnostics.Stopwatch.StartNew();
-var phi2 = Phi2ForCasualLM.FromPretrained(phi2Folder, device: device, defaultDType: defaultType, checkPointName: "model.safetensors.index.json");
+var phi2 = Phi2ForCasualLM.FromPretrained(phi2Folder, device: device, torchDtype: defaultType, checkPointName: "model.safetensors.index.json");
 
 timer.Stop();
 Console.WriteLine($"Phi2 loaded in {timer.ElapsedMilliseconds / 1000} s");
