@@ -187,7 +187,7 @@ public class LLama2Tokenizer : ITokenizer
             }
         }
 
-        return new LLama2Tokenizer(vocab, merges, padToken: padToken, startToken: startToken, endToken: endToken);
+        return new LLama2Tokenizer(vocab, merges, padToken: padToken, addPrecedingSpace: false, startToken: startToken, endToken: endToken);
     }
 
     public int VocabSize => this.tokenizer.Model.GetVocabSize();

@@ -20,7 +20,7 @@ if (device == "cuda")
 var defaultType = ScalarType.BFloat16;
 torch.manual_seed(1);
 
-Console.WriteLine("Loading Phi2 from huggingface model weight folder");
+Console.WriteLine("Loading Phi3 from huggingface model weight folder");
 var timer = System.Diagnostics.Stopwatch.StartNew();
 var model = Phi3ForCasualLM.FromPretrained(phi2Folder, device: device, torchDtype: defaultType, checkPointName: "model.safetensors.index.json");
 var tokenizer = LLama2Tokenizer.FromPretrained(phi2Folder);
@@ -28,10 +28,10 @@ var pipeline = new CasualLMPipeline(tokenizer, model, device);
 
 
 timer.Stop();
-Console.WriteLine($"Phi2 loaded in {timer.ElapsedMilliseconds / 1000} s");
+Console.WriteLine($"Phi3 loaded in {timer.ElapsedMilliseconds / 1000} s");
 
 // QA Format
-int maxLen = 512;
+int maxLen = 1024;
 float temperature = 0.0f;
 Console.WriteLine($"QA Format: maxLen: {maxLen} temperature: {temperature}");
 var prompt = "Can you provide ways to eat combinations of bananas and dragonfruits?";
@@ -40,4 +40,5 @@ Console.WriteLine($"Prompt: {prompt}");
 Console.WriteLine("Press enter to continue inferencing QA format");
 
 Console.WriteLine(prompt);
-pipeline.Generate(prompt, maxLen: maxLen, temperature: temperature, device: device);
+var str = pipeline.Generate(prompt, maxLen: maxLen, temperature: temperature, device: device);
+Console.WriteLine(str);

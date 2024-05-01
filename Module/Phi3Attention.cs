@@ -140,10 +140,6 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
         var embOutput = this.rotary_emb.forward(new Phi3RotaryEmbeddingInput(value_states, positionIds, kv_seq_len));
         (var cos, var sin) = (embOutput.Cos, embOutput.Sin);
 
-        query_states.Peek("query_states");
-        key_states.Peek("key_states");
-        cos.Peek("cos");
-        sin.Peek("sin");
         (query_states, key_states) = Utils.ApplyRotaryPosEmb(query_states, key_states, cos, sin);
 
         if (past_key_value is not null)
