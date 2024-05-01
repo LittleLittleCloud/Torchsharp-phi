@@ -1,29 +1,103 @@
+using Phi;
+using System.CodeDom;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using FluentAssertions;
-using Microsoft.ML.Tokenizers;
-using ShellProgressBar;
 using TorchSharp;
 using TorchSharp.Modules;
 using TorchSharp.PyBridge;
 using static TorchSharp.torch;
 
-public class Phi2ForCasualLM
-{
-    private readonly PhiModelInferenceWrapper model;
-    private readonly string device = "cpu";
-    private readonly Phi2Tokenizer tokenizer;
 
-    public Phi2ForCasualLM(PhiModelInferenceWrapper model, Phi2Tokenizer tokenizer, string device = "cpu")
+public class PhiLinear : nn.Module<Tensor, Tensor>
+{
+    private readonly Tensor weight;
+    private readonly Tensor? bias;
+    private int inFeatures;
+    private int outFeatures;
+
+    public PhiLinear(int inFeatures, int outFeatures, bool hasBias = true, ScalarType dtype = ScalarType.Float32)
+        : base(nameof(PhiLinear))
     {
-        this.model = model;
-        this.device = device;
-        this.tokenizer = tokenizer;
+        this.inFeatures = inFeatures;
+        this.outFeatures = outFeatures;
+        this.weight = torch.randn(outFeatures, inFeatures, dtype: dtype);
+
+        if (hasBias)
+        {
+            this.bias = torch.randn(outFeatures, dtype: dtype);
+            this.RegisterComponents();
+        }
+        else
+        {
+            this.RegisterComponents();
+        }
     }
 
-    public PhiModelInferenceWrapper Model => this.model;
+    public override Tensor forward(Tensor input)
+    {
+        using var dispose = torch.NewDisposeScope();
 
-    public Phi2Tokenizer Tokenizer => this.tokenizer;
+        // use float32
+        var input2 = input.to_type(ScalarType.Float32);
+        var weight2 = this.weight.to_type(ScalarType.Float32);
+        var result = torch.matmul(input2, weight2.t());
+
+        if (this.bias is not null)
+        {
+            result = result + this.bias.to_type(ScalarType.Float32);
+        }
+
+        return result.to_type(input.dtype).MoveToOuterDisposeScope();
+    }
+}
+
+public class NewGELUActivation : torch.nn.Module<Tensor, Tensor>
+{
+    public NewGELUActivation()
+        : base(nameof(NewGELUActivation))
+    {
+    }
+
+    public override Tensor forward(Tensor input)
+    {
+        using var result = 0.044715 * torch.pow(input, 3.0);
+        using var result2 = result + input;
+        using var result3 = Math.Sqrt(2.0 / Math.PI) * result2;
+        using var result4 = torch.tanh(result3);
+        using var result5 = 1.0 + result4;
+        return 0.5 * input * result5;
+    }
+}
+
+public class Phi2ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput>
+{
+    private readonly Phi2Model model;
+
+    private readonly Linear lm_head;
+
+    public Phi2ForCasualLM(Phi2Model model)
+        : base(nameof(Phi2ForCasualLM))
+    {
+        this.model = model;
+        this.lm_head = nn.Linear(model.Config.HiddenSize, model.Config.VocabSize, dtype: model.Config.Dtype);
+        this.RegisterComponents();
+    }
+
+    public override CasualLMModelOutput forward(CasualLMModelInput input) // use_cache, output_attentions, output_hidden_states
+    {
+        var inputIds = input.input_ids;
+        var attentionMask = input.attention_mask;
+        var pastKeyValueLength = input.past_key_values_length;
+        var positionIds = input.position_ids;
+        var inputEmbeddings = input.inputs_embeds;
+        var options = (input.output_attentions, input.output_hidden_states, false);
+        var output = this.model.forward(inputIds, attentionMask, pastKeyValueLength, positionIds, inputEmbeddings, options);
+        var hidden_state = output.Item1;
+
+        var lm_logits = this.lm_head.forward(hidden_state);
+
+        return new CasualLMModelOutput(last_hidden_state: hidden_state, legits: lm_logits);
+    }
 
     public static Phi2ForCasualLM FromPretrained(
         string modelFolder,
@@ -36,106 +110,13 @@ public class Phi2ForCasualLM
         var modelConfig = JsonSerializer.Deserialize<Phi2Config>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
         modelConfig.Dtype = torchDtype;
         var phi = new Phi2Model(modelConfig);
-        var wrapper = new PhiModelInferenceWrapper(phi);
+        var wrapper = new Phi2ForCasualLM(phi);
         var loadedParameters = new Dictionary<string, bool>();
         wrapper.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: true, loadedParameters: loadedParameters);
         wrapper = wrapper.to(device);
         wrapper.eval();
-        var tokenzier = Phi2Tokenizer.FromPretrained(modelFolder);
-        return new Phi2ForCasualLM(wrapper, tokenzier, device);
-    }
-
-    public string Device => this.device;
-
-    public (
-        Tensor, // output token ids [batch_size, sequence_length]
-        Tensor // output logits [batch_size, sequence_length, vocab_size]
-    ) Generate(
-        Tensor inputIds, // input token ids [batch_size, sequence_length]
-        Tensor attentionMask, // attention mask [batch_size, sequence_length]
-        float temperature = 0.7f,
-        float topP = 0.9f,
-        int maxLen = 128,
-        int[][]? stopTokenSequence = null,
-        bool echo = false)
-    {
-        var batch = inputIds.shape[0];
-        var device = inputIds.device;
-        var minPromptLen = (int)inputIds.shape[1];
-        var totalLen = minPromptLen + maxLen;
-        if (stopTokenSequence == null)
-        {
-            stopTokenSequence = [[50256]];
-        }
-        else
-        {
-            // add 50265 to the stopTokenIds
-            stopTokenSequence = stopTokenSequence.Append([50256]).Distinct().ToArray();
-        }
-
-        using (var _ = torch.no_grad())
-        {
-            var prevPos = 0;
-            var eosReached = torch.tensor(new bool[batch], device: device);
-            torch.Tensor? logits = default;
-            if (minPromptLen == totalLen)
-            {
-                (logits, var _, var _) = this.model.forward(inputIds, attentionMask, prevPos);
-            }
-            for (int curPos = minPromptLen; curPos != totalLen; curPos++)
-            {
-                (logits, var _, var _) = this.model.forward(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], prevPos);
-                torch.Tensor nextToken;
-                if (temperature > 0)
-                {
-                    var probs = torch.softmax(logits[.., -1] / temperature, dim: -1);
-                    nextToken = this.SampleTopP(probs, topP);
-                }
-                else
-                {
-                    nextToken = torch.argmax(logits[.., -1], dim: -1);
-                }
-
-                nextToken = nextToken.reshape(-1);
-                inputIds = torch.cat([inputIds, nextToken.unsqueeze(1)], dim: -1);
-                attentionMask = torch.cat([attentionMask, attentionMask.new_ones(attentionMask.shape[0], 1)], dim: -1);
-                foreach (var stopSequence in stopTokenSequence)
-                {
-                    // determine if the last n tokens are the stop sequence
-                    var lastN = inputIds[.., ^stopSequence.Length..];
-                    var lastNMatch = lastN == torch.tensor(stopSequence, device: device);
-                    eosReached |= lastNMatch.all(dim: -1);
-                }
-                if (eosReached.all().item<bool>())
-                {
-                    // pBar.WriteLine("EOS reached");
-                    // pBar.Tick(maxLen);
-                    break;
-                }
-
-                var message = $"Generating Token {curPos}/{maxLen}";
-                // pBar.Tick(curPos, message);
-                var nextTokenIds = nextToken.to_type(ScalarType.Int32).data<int>().ToArray();
-                var nextTokenStr = this.tokenizer.Decode(nextTokenIds);
-                Console.Write(nextTokenStr);
-
-                prevPos = curPos;
-
-            }
-
-            return (inputIds, logits!);
-        }
-    }
-
-    private torch.Tensor SampleTopP(torch.Tensor logits, float topP)
-    {
-        (var probsSort, var probsIndex) = torch.sort(logits, dim: -1, descending: true);
-        var cumsum = torch.cumsum(probsSort, dim: -1);
-        var mask = cumsum - probsSort > topP;
-        probsSort[mask] = 0f;
-        probsSort /= probsSort.sum(dim: -1, keepdim: true);
-        var nextToken = torch.multinomial(probsSort, num_samples: 1);
-        nextToken = torch.gather(probsIndex, dim: -1, index: nextToken);
-        return nextToken;
+        
+        return wrapper;
     }
 }
+  

@@ -1,0 +1,2 @@
+﻿output: sum: 382.3756  dtype: BFloat16 shape: [1,128,2560]
+logits: sum: 1698.6698  dtype: BFloat16 shape: [1,128,51200]

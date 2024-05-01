@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using static TorchSharp.torch;
 using TorchSharp;
 using Xunit;
+using FluentAssertions;
 
 namespace Phi.Tests;
 
@@ -32,6 +33,8 @@ public class Phi3Tests
     {
         var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-4k-instruct";
         var tokenizer = LLama2Tokenizer.FromPretrained(modelWeightFolder);
+        tokenizer.BosId.Should().Be(1);
+        tokenizer.EosId.Should().Be(32000);
         var messages = new string[]
         {
             "Can you provide ways to eat combinations of bananas and dragonfruits?",

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TorchSharp.Modules;
 using TorchSharp;
 using static TorchSharp.torch;
+using static TorchSharp.torch.nn;
 
 public static class Utils
 {
@@ -150,6 +151,19 @@ public static class Utils
         kEmbed += RotateHalf(k) * sin;
         // var kEmbed = (k * cos) + (RotateHalf(k) * sin);
         return (qEmbed, kEmbed);
+    }
+
+    public static Module<Tensor, Tensor> GetActivation(string act_fn)
+    {
+        return act_fn switch
+        {
+            "silu" => nn.SiLU(),
+            "relu" => nn.ReLU(),
+            "gelu" => nn.GELU(),
+            "tanh" => nn.Tanh(),
+            "swish" => nn.SiLU(),
+            _ => throw new ArgumentException("Invalid activation function", nameof(act_fn)),
+        };
     }
 
 

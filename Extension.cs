@@ -1,3 +1,4 @@
+using Phi.Pipeline;
 using System.Text;
 using TorchSharp;
 using static TorchSharp.torch;
@@ -5,21 +6,25 @@ using static TorchSharp.torch;
 public static class Extension
 {
     public static string Generate(
-        this Phi2ForCasualLM phi,
+        this CasualLMPipeline pipeline,
         string prompt,
         int maxLen = 128,
         float temperature = 0.7f,
         float topP = 0.9f,
-        string[]? stopSequences = null)
+        string[]? stopSequences = null,
+        string device = "cpu",
+        bool bos = true,
+        bool eos = false,
+        bool echo = false)
     {
-        var inputIds = phi.Tokenizer.Encode(prompt);
-        var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: phi.Device).unsqueeze(0);
+        var inputIds = pipeline.Tokenizer.Encode(prompt, bos, eos);
+        var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
         var attentionMask = torch.ones_like(inputTensor);
-        var stopTokenIds = stopSequences == null ? [[ phi.Tokenizer.EosId ]] : stopSequences.Select(x => phi.Tokenizer.Encode(x)).ToArray();
-        (var token, var _) = phi.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds);
+        var stopTokenIds = stopSequences == null ? [[ pipeline.Tokenizer.EosId ]] : stopSequences.Select(x => pipeline.Tokenizer.Encode(x, bos, eos)).ToArray();
+        (var token, var _) = pipeline.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds, echo: echo);
 
         var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();
-        var output = phi.Tokenizer.Decode(tokenIds);
+        var output = pipeline.Tokenizer.Decode(tokenIds);
         return output;
 
     }

@@ -32,7 +32,7 @@ public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput
         var outputs = this.model.forward(input);
         var logits = this.lm_head.forward(outputs.last_hidden_state);
         logits = logits.to_type(ScalarType.Float32);
-        outputs.legits = logits;
+        outputs.logits = logits;
 
         return outputs;
     }

@@ -55,12 +55,12 @@ public class CasualLMModelOutput
     {
         this.last_hidden_state = last_hidden_state;
         this.hidden_states = hidden_states;
-        this.legits = legits;
+        this.logits = legits;
         this.attentions = attentions;
         this.past_key_values = past_key_values;
     }
 
-    public Tensor legits { get; set; }
+    public Tensor logits { get; set; }
 
     public Tensor last_hidden_state { get; set; }
 

@@ -18,7 +18,7 @@ public class Phi3MLP : torch.nn.Module<Tensor, Tensor>
     {
         this.gate_up_proj = torch.nn.Linear(config.HiddenSize, 2 * config.IntermediateSize, hasBias: false, dtype: config.DType);
         this.down_proj = torch.nn.Linear(config.IntermediateSize, config.HiddenSize, hasBias: false, dtype: config.DType);
-        this.activation_fn = new NewGELUActivation();
+        this.activation_fn = Utils.GetActivation(config.HiddenAct);
     }
     public override Tensor forward(Tensor input)
     {

@@ -13,11 +13,21 @@ public class CasualLMPipeline
     private readonly ITokenizer tokenizer;
     private readonly nn.Module<CasualLMModelInput, CasualLMModelOutput> model;
 
-    public CasualLMPipeline(ITokenizer tokenizer, nn.Module<CasualLMModelInput, CasualLMModelOutput> model)
+    public CasualLMPipeline(
+        ITokenizer tokenizer,
+        nn.Module<CasualLMModelInput, CasualLMModelOutput> model,
+        string device = "cpu")
     {
         this.tokenizer = tokenizer;
         this.model = model;
+        this.Device = device;
     }
+
+    public ITokenizer Tokenizer => this.tokenizer;
+
+    public nn.Module<CasualLMModelInput, CasualLMModelOutput> Model => this.model;
+
+    public Device Device { get; }
 
     public (
         Tensor, // output token ids [batch_size, sequence_length]
@@ -37,12 +47,11 @@ public class CasualLMPipeline
         var totalLen = minPromptLen + maxLen;
         if (stopTokenSequence == null)
         {
-            stopTokenSequence = [[50256]];
+            stopTokenSequence = [[this.tokenizer.EosId]];
         }
         else
         {
-            // add 50265 to the stopTokenIds
-            stopTokenSequence = stopTokenSequence.Append([50256]).Distinct().ToArray();
+            stopTokenSequence = stopTokenSequence.Append([this.tokenizer.EosId]).Distinct().ToArray();
         }
 
         using (var _ = torch.no_grad())
@@ -55,13 +64,13 @@ public class CasualLMPipeline
             {
                 var input = new CasualLMModelInput(inputIds, attentionMask, past_key_values_length: 0);
                 var output = this.model.forward(input);
-                logits = output.legits;
+                logits = output.logits;
             }
             for (int curPos = minPromptLen; curPos != totalLen; curPos++)
             {
                 var input = new CasualLMModelInput(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], past_key_values_length: prevPos);
                 var output = this.model.forward(input);
-                logits = output.legits;
+                logits = output.logits;
                 torch.Tensor nextToken;
                 if (temperature > 0)
                 {

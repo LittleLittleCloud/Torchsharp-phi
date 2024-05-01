@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using FluentAssertions;
+using Phi.Pipeline;
 using TorchSharp;
 using static TorchSharp.torch;
 
@@ -22,6 +23,9 @@ torch.manual_seed(1);
 Console.WriteLine("Loading Phi2 from huggingface model weight folder");
 var timer = System.Diagnostics.Stopwatch.StartNew();
 var phi2 = Phi2ForCasualLM.FromPretrained(phi2Folder, device: device, torchDtype: defaultType, checkPointName: "model.safetensors.index.json");
+var tokenizer = Phi2Tokenizer.FromPretrained(phi2Folder);
+var pipeline = new CasualLMPipeline(tokenizer, phi2, device);
+
 
 timer.Stop();
 Console.WriteLine($"Phi2 loaded in {timer.ElapsedMilliseconds / 1000} s");
@@ -37,4 +41,4 @@ Console.WriteLine("Press enter to continue inferencing QA format");
 Console.ReadLine();
 
 Console.WriteLine(prompt);
-phi2.Generate(prompt, maxLen: maxLen, temperature: temperature);
+pipeline.Generate(prompt, maxLen: maxLen, temperature: temperature, device: device);
