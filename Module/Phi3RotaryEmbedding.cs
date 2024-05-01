@@ -59,10 +59,15 @@ public class Phi3RotaryEmbedding : nn.Module<
         // TODO
         // can be calculated once and cached
         var inv_freq = this.get_buffer("inv_freq").to(x.device);
-        var inv_freq_expanded = inv_freq.unsqueeze(0).unsqueeze(-1).expand(position_ids.shape[0], -1, 1);
-        //position_ids_expanded = position_ids[:, None, :].float()
+        var inv_freq_expanded = inv_freq.unsqueeze(0).unsqueeze(-1);
+        inv_freq_expanded.Peek("inv_freq_expanded");
+        position_ids.Peek("position_ids");
+        inv_freq_expanded.Peek("inv_freq_expanded");
+        inv_freq_expanded = inv_freq_expanded.expand(new long[] { position_ids.shape[0], -1, 1 });
+        
         var position_ids_expanded = position_ids.unsqueeze(1).to(torch.float32);
         var freqs = inv_freq_expanded * position_ids_expanded;
+        freqs = freqs.transpose(1, 2);
         var emb = torch.cat([freqs, freqs], dim: -1);
 
         var cos = torch.cos(emb);

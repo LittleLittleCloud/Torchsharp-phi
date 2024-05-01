@@ -129,8 +129,8 @@ public class Phi2Attention : nn.Module<
         this.cache_v[..batchSize, .., pastKeyValueLength..kvSeqLen, ..] = valueStates;
         keyStates = this.cache_k[..batchSize, .., ..kvSeqLen, ..];
         valueStates = this.cache_v[..batchSize, .., ..kvSeqLen, ..];
-        var keyStates2 = Utils.RepeatKV(keyStates, this.numKeyValueGroups).transpose(2, 3);
-        var valueStates2 = Utils.RepeatKV(valueStates, this.numKeyValueGroups);
+        var keyStates2 = Utils.Phi2RepeatKV(keyStates, this.numKeyValueGroups).transpose(2, 3);
+        var valueStates2 = Utils.Phi2RepeatKV(valueStates, this.numKeyValueGroups);
         // Queries and keys upcast to fp32 is required by Phi-2 to avoid overflow
         var attnWeights = torch.matmul(queryStates.to_type(float32), keyStates2.to_type(float32));
         attnWeights = attnWeights / Math.Sqrt(this.headDim);

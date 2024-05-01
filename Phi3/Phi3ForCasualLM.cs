@@ -40,7 +40,7 @@ public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput
     public static Phi3ForCasualLM FromPretrained(
         string modelFolder,
         string configName = "config.json",
-        string modelWeightName = "model.safetensors.index.json",
+        string checkPointName = "model.safetensors.index.json",
         ScalarType torchDtype = ScalarType.BFloat16,
         string device = "cpu")
     {
@@ -49,7 +49,7 @@ public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput
         modelConfig.DType = torchDtype;
         var phi = new Phi3ForCasualLM(modelConfig);
         var loadedParameters = new Dictionary<string, bool>();
-        phi.load_checkpoint(path: modelFolder, checkpointName: modelWeightName, strict: false, loadedParameters: loadedParameters);
+        phi.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: false, loadedParameters: loadedParameters);
         phi = phi.to(device);
         phi.eval();
 

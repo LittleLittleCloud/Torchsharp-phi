@@ -151,10 +151,11 @@ public class Phi3Model : nn.Module<CasualLMModelInput, CasualLMModelOutput>
         }
         else
         {
-            attention_mask = AttentionMaskConverter.Create4DCasualAttentionMask(attention_mask, [batch_size, seq_length], inputs_embeds.dtype, device, past_key_values_length, this.config.SlidingWindow);
+            attention_mask = AttentionMaskConverter.Create4DCausalAttentionMask(attention_mask, [batch_size, seq_length], inputs_embeds.dtype, device, past_key_values_length, this.config.SlidingWindow);
         }
 
         var hidden_states = inputs_embeds;
+        hidden_states.Peek("hidden_states");
 
         var all_hidden_states = new List<Tensor>();
         var all_attentions = new List<Tensor>();

@@ -2,6 +2,7 @@
 using static TorchSharp.torch;
 using TorchSharp.Modules;
 using TorchSharp;
+using System.Threading.Tasks;
 
 namespace Phi;
 
@@ -10,10 +11,63 @@ public class AttentionMaskConverter
     private readonly bool is_casual;
     private readonly int? sliding_window;
 
-    public AttentionMaskConverter(bool is_casual, int? sliding_window)
+    public AttentionMaskConverter(bool is_causal, int? sliding_window)
     {
-        this.is_casual = is_casual;
+        this.is_casual = is_causal;
         this.sliding_window = sliding_window;
+    }
+
+    /// <summary>
+    /// Converts 2D attention mask to 4D attention mask by expanding mask to (bsz, head_dim=1, query_length,
+    /// key_value_length) shape and by adding a large negative bias to not-attended positions.If attention_mask is
+    /// causal, a causal mask will be added.
+    /// </summary>
+    /// <param name="attention_mask_2d"></param>
+    /// <param name="query_length"></param>
+    /// <param name="dtype"></param>
+    /// <param name="key_value_length"></param>
+    /// <returns></returns>
+    public Tensor To4D(
+        Tensor attention_mask_2d,
+        int query_length,
+        ScalarType dtype,
+        int? key_value_length = null)
+    {
+        long[] input_shape = [attention_mask_2d.shape[0], query_length];
+
+        // create causal mask
+        // [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
+        Tensor? casual_4d_mask = null;
+        if ((input_shape[^1] > 1 || this.sliding_window is not null) && this.is_casual)
+        {
+            if (key_value_length is null)
+            {
+                throw new ArgumentException("key_value_length should be provided when attention_mask is causal");
+            }
+
+            var past_key_values_length = key_value_length.Value - query_length;
+            casual_4d_mask = MakeCasualMask(input_shape, dtype, attention_mask_2d.device, past_key_values_length, this.sliding_window);
+        }
+        else if(this.sliding_window is not null)
+        {
+            throw new NotImplementedException("Sliding window is not supported for non-causal masks");
+        }
+
+        var expanded_attn_mask = ExpandMask(attention_mask_2d, dtype, query_length).to(attention_mask_2d.device);
+        if (casual_4d_mask is not null)
+        {
+            var min = dtype switch
+            {
+                ScalarType.Float32 => torch.finfo(dtype).min,
+                ScalarType.Float64 => torch.finfo(dtype).min,
+                ScalarType.Float16 => -65504.0,
+                ScalarType.BFloat16 => -65504.0,
+                _ => throw new ArgumentException("Invalid dtype"),
+            };
+            expanded_attn_mask = casual_4d_mask.masked_fill(expanded_attn_mask.to(ScalarType.Bool), min);
+        }
+
+        return expanded_attn_mask;
     }
 
     public Tensor? ToCasual4D(
@@ -57,6 +111,7 @@ public class AttentionMaskConverter
             ScalarType.Float32 => torch.finfo(dtype).min,
             ScalarType.Float64 => torch.finfo(dtype).min,
             ScalarType.Float16 => -65504.0,
+            ScalarType.BFloat16 => -65504.0,
             _ => throw new ArgumentException("Invalid dtype"),
         };
         var mask = torch.full([tgt_len, tgt_len], min, dtype: dtype, device: device);
@@ -86,7 +141,7 @@ public class AttentionMaskConverter
     /// Creates a causal 4D mask of shape `(batch_size, 1, query_length, key_value_length)`
     /// </summary>
     /// <param name="input_shape">The input shape should be a tuple that defines `(batch_size, query_length)`.</param>
-    public static Tensor? Create4DCasualAttentionMask(
+    public static Tensor? Create4DCausalAttentionMask(
         Tensor? attention_mask,
         long[] input_shape,
         ScalarType dtype,
@@ -94,15 +149,20 @@ public class AttentionMaskConverter
         int past_key_values_length = 0,
         int? sliding_window = null)
     {
-        if (attention_mask is not null)
-        {
-            throw new ArgumentException("This is not a casual mask");
-        }
-
+        var converter = new AttentionMaskConverter(is_causal: true, sliding_window: sliding_window);
         var batch_size = (int)input_shape[0];
         var query_length = (int)input_shape[1];
-        var converter = new AttentionMaskConverter(is_casual: true, sliding_window: sliding_window);
         var key_value_length = past_key_values_length + query_length;
+        if (attention_mask is not null)
+        {
+            if (attention_mask.ndim != 2)
+            {
+                throw new ArgumentException("Attention mask should be 2D");
+            }
+            return converter.To4D(attention_mask, (int)input_shape[1], dtype, key_value_length);
+        }
+
+        
         return converter.ToCasual4D(batch_size, query_length, key_value_length, dtype, device);
     }
 
@@ -122,6 +182,7 @@ public class AttentionMaskConverter
             ScalarType.Float32 => torch.finfo(dtype).min,
             ScalarType.Float64 => torch.finfo(dtype).min,
             ScalarType.Float16 => -65504.0,
+            ScalarType.BFloat16 => -65504.0,
             _ => throw new ArgumentException("Invalid dtype"),
         };
 

@@ -48,7 +48,7 @@ public static class Extension
         avg = avg.round(4);
         var str = $"{id}: sum: {avg.ToSingle()}  dtype: {dtype} shape: [{shapeString}]";
 
-        //Console.WriteLine(str);
+        Console.WriteLine(str);
 
         return str;
     }

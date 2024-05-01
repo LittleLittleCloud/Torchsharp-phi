@@ -133,7 +133,7 @@ public static class Utils
 //     k_embed = (k * cos) + (rotate_half(k) * sin)
 //     return q_embed, k_embed
     
-    public static (Tensor, Tensor) ApplyRotaryPosEmb(Tensor q, Tensor k, Tensor cos, Tensor sin, Tensor positionIds, int unsqueezeDim = 1)
+    public static (Tensor, Tensor) ApplyRotaryPosEmb(Tensor q, Tensor k, Tensor cos, Tensor sin, Tensor? positionIds = null, int unsqueezeDim = 1)
     {
         // The 'unsqueeze_dim' argument specifies the dimension along which to unsqueeze cos[position_ids] and
         // sin[position_ids] so that they can be properly broadcasted to the dimensions of q and k. For example, note
@@ -142,8 +142,17 @@ public static class Utils
         // cos[position_ids] and sin[position_ids] broadcastable to the shapes of q and k. Similarly, if q and k have
         // the shape [batch_size, seq_len, heads, head_dim], then set unsqueeze_dim=2.
 
-        cos = cos[positionIds].unsqueeze(unsqueezeDim);
-        sin = sin[positionIds].unsqueeze(unsqueezeDim);
+        if (positionIds is not null)
+        {
+            cos = cos[positionIds!].unsqueeze(unsqueezeDim);
+            sin = sin[positionIds!].unsqueeze(unsqueezeDim);
+        }
+        else
+        {
+            cos = cos.unsqueeze(unsqueezeDim);
+            sin = sin.unsqueeze(unsqueezeDim);
+        }
+        
         var qEmbed = q * cos;
         qEmbed += RotateHalf(q) * sin;
 
@@ -162,12 +171,12 @@ public static class Utils
             "gelu" => nn.GELU(),
             "tanh" => nn.Tanh(),
             "swish" => nn.SiLU(),
-            _ => throw new ArgumentException("Invalid activation function", nameof(act_fn)),
+            _ => throw new ArgumentException("Invalid activation function", act_fn),
         };
     }
 
 
-    public static Tensor RepeatKV(Tensor x, int nRep)
+    public static Tensor Phi2RepeatKV(Tensor x, int nRep)
     {
         var batchSize = x.shape[0];
         var seqLen = x.shape[1];
@@ -181,6 +190,22 @@ public static class Utils
         return x.unsqueeze(3)
                 .expand(batchSize, seqLen, nKVHeads, nRep, headDim)
                 .view(batchSize, seqLen, nKVHeads * nRep, headDim);
+    }
+
+    public static Tensor Phi3RepeatKV(Tensor x, int nRep)
+    {
+        var batchSize = x.shape[0];
+        var nKVHeads = x.shape[1];
+        var seqLen = x.shape[2];
+        var headDim = x.shape[3];
+        if (nRep == 1)
+        {
+            return x;
+        }
+
+        return x.unsqueeze(3)
+                .expand(batchSize, nKVHeads, nRep, seqLen, headDim)
+                .view(batchSize, nKVHeads * nRep, seqLen, headDim);
     }
 
 }
