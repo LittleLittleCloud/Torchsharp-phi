@@ -68,7 +68,7 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
     private readonly int max_position_embeddings;
     private readonly int original_max_position_embeddings;
     private readonly double rope_theta;
-    private readonly double? rope_scaling;
+    private readonly Dictionary<string, object>? rope_scaling;
     private readonly bool is_causal;
 
     private readonly Linear o_proj;
@@ -109,7 +109,7 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
         }
         else
         {
-            throw new NotImplementedException();
+            this.rotary_emb = new Phi3SuScaledRotaryEmbedding(this.head_dim, this.config);
         }
     }
 
