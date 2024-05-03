@@ -60,7 +60,7 @@ public class Phi3Config
     public double RopeTheta { get; set; } = 10000.0;
 
     [JsonPropertyName("rope_scaling")]
-    public double? RopeScaling { get; set; } = null;
+    public Dictionary<string, object>? RopeScaling { get; set; } = null;
 
     [JsonPropertyName("partial_rotary_factor")]
     public double PartialRotaryFactor { get; set; } = 0.5;

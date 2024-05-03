@@ -18,9 +18,20 @@ public class Phi3Tests
     [Fact]
     [UseReporter(typeof(DiffReporter))]
     [UseApprovalSubdirectory("Approvals")]
-    public async Task ShapeTest()
+    public async Task Phi3Mini4KShapeTest()
     {
         var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-4k-instruct";
+        var model = Phi3ForCasualLM.FromPretrained(modelWeightFolder, torchDtype: ScalarType.BFloat16);
+        var state_dict_str = model.Peek();
+        Approvals.Verify(state_dict_str);
+    }
+
+    [Fact]
+    [UseReporter(typeof(DiffReporter))]
+    [UseApprovalSubdirectory("Approvals")]
+    public async Task Phi3Mini128KShapeTest()
+    {
+        var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-128k-instruct";
         var model = Phi3ForCasualLM.FromPretrained(modelWeightFolder, torchDtype: ScalarType.BFloat16);
         var state_dict_str = model.Peek();
         Approvals.Verify(state_dict_str);

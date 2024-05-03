@@ -8,7 +8,7 @@ using static TorchSharp.torch;
 // Dynamic loading libtorch because Cuda 12 only support GPU driver >= 520
 // And I can't upgrade GPU driver because it's a cloud machine.
 
-var phi2Folder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-4k-instruct";
+var phi2Folder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-128k-instruct";
 var device = "cuda";
 
 if (device == "cuda")
@@ -40,5 +40,4 @@ Console.WriteLine($"Prompt: {prompt}");
 Console.WriteLine("Press enter to continue inferencing QA format");
 
 Console.WriteLine(prompt);
-var str = pipeline.Generate(prompt, maxLen: maxLen, temperature: temperature, device: device);
-Console.WriteLine(str);
+pipeline.Generate(prompt, maxLen: maxLen, stopSequences: ["<|end|>"], temperature: temperature, device: device);
