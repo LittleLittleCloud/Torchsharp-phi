@@ -87,6 +87,7 @@ public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLaye
     }
     public override Phi3DecoderLayerOutput forward(Phi3DecoderLayerInput input)
     {
+        using var _ = NewDisposeScope();
         var hidden_states = input.hidden_states;
         var residual = input.hidden_states;
         hidden_states = this.input_layernorm.forward(hidden_states);
@@ -103,6 +104,6 @@ public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLaye
         hidden_states = this.mlp.forward(hidden_states);
         hidden_states = residual + this.resid_mlp_dropout.forward(hidden_states);
 
-        return new Phi3DecoderLayerOutput(hidden_states, self_attn_weights, present_key_value);
+        return new Phi3DecoderLayerOutput(hidden_states.MoveToOuterDisposeScope(), self_attn_weights?.MoveToOuterDisposeScope(), present_key_value);
     }
 }

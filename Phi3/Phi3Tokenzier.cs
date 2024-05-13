@@ -45,6 +45,7 @@ public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
     {
         var str = string.Join("", tokens);
         str = str.Replace(spaceReplacement, ' ');
+        str = str.Replace("<0x0A>", Environment.NewLine);
 
         if (str.StartsWith(bos))
         {
