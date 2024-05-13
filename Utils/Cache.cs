@@ -8,7 +8,7 @@ using static TorchSharp.torch;
 
 namespace Phi;
 
-public interface IKVCache : IDictionary<int, (Tensor, Tensor)>
+public interface IKVCache : IDictionary<int, (Tensor, Tensor)>, IDisposable
 {
     public (Tensor, Tensor) UpdateKVCache(Tensor key, Tensor value, int layer_idx);
 
@@ -21,6 +21,7 @@ public interface IKVCache : IDictionary<int, (Tensor, Tensor)>
 
 public class DynamicKVCache : Dictionary<int, (Tensor, Tensor)>, IKVCache
 {
+    private readonly DisposeScope disposeScope = new DisposeScope(new DisposeScopeManager());
     public DynamicKVCache()
     {
     }
@@ -30,13 +31,20 @@ public class DynamicKVCache : Dictionary<int, (Tensor, Tensor)>, IKVCache
         if (this.ContainsKey(layer_idx))
         {
             var (oldKey, oldValue) = this[layer_idx];
-            oldKey = torch.cat([oldKey, key], -2);
-            oldValue = torch.cat([oldValue, value], -2);
-            this[layer_idx] = (oldKey, oldValue);
+            oldKey.DetachFromDisposeScope();
+            oldValue.DetachFromDisposeScope();
+
+            var newKey = torch.cat([oldKey, key], -2).MoveToOtherDisposeScope(this.disposeScope);
+            var newValue = torch.cat([oldValue, value], -2).MoveToOtherDisposeScope(this.disposeScope);
+
+            oldKey.Dispose();
+            oldValue.Dispose();
+
+            this[layer_idx] = (newKey, newValue);
         }
         else
         {
-            this.Add(layer_idx, (key, value));
+            this.Add(layer_idx, (key.MoveToOtherDisposeScope(this.disposeScope), value.MoveToOtherDisposeScope(this.disposeScope)));
         }
 
         return this[layer_idx];
@@ -68,5 +76,10 @@ public class DynamicKVCache : Dictionary<int, (Tensor, Tensor)>, IKVCache
         }
 
         return previousSeqLen;
+    }
+
+    public void Dispose()
+    {
+        this.disposeScope.Dispose();
     }
 }

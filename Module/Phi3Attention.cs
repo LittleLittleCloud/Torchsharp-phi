@@ -73,7 +73,6 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
 
     private readonly Linear o_proj;
     private readonly Linear qkv_proj;
-    private readonly Linear p_proj;
     private nn.Module<Phi3RotaryEmbeddingInput, Phi3RotaryEmbeddingOutput> rotary_emb;
 
     public Phi3Attention(Phi3Config config, int layer_idx)
@@ -115,67 +114,70 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
 
     public override Phi3AttentionOutput forward(Phi3AttentionInput input)
     {
-        var hidden_states = input.hidden_states;
-        var positionIds = input.position_ids;
-        var output_attentions = input.output_attentions;
-        var bsz = hidden_states.shape[0];
-        var q_len = hidden_states.shape[1];
-
-        var qkv = this.qkv_proj.forward(hidden_states);
-        var query_pos = this.num_heads * this.head_dim;
-        var query_states = qkv[.., .., ..query_pos];
-        var key_states = qkv[.., .., query_pos .. (query_pos + this.num_key_value_heads * this.head_dim)];
-        var value_states = qkv[.., .., (query_pos + this.num_key_value_heads * this.head_dim)..];
-        query_states = query_states.view(bsz, q_len, this.num_heads, this.head_dim).transpose(1, 2);
-        key_states = key_states.view(bsz, q_len, this.num_key_value_heads, this.head_dim).transpose(1, 2);
-        value_states = value_states.view(bsz, q_len, this.num_key_value_heads, this.head_dim).transpose(1, 2);
-
-        var kv_seq_len = key_states.IntShape()[^2];
-        var past_key_value = input.cache;
-        if (past_key_value is not null)
+        using (var _ = NewDisposeScope())
         {
-            kv_seq_len += past_key_value.GetUsableLength(kv_seq_len, this.layer_idx);
+            var hidden_states = input.hidden_states;
+            var positionIds = input.position_ids;
+            var output_attentions = input.output_attentions;
+            var bsz = hidden_states.shape[0];
+            var q_len = hidden_states.shape[1];
+
+            var qkv = this.qkv_proj.forward(hidden_states);
+            var query_pos = this.num_heads * this.head_dim;
+            var query_states = qkv[.., .., ..query_pos];
+            var key_states = qkv[.., .., query_pos..(query_pos + this.num_key_value_heads * this.head_dim)];
+            var value_states = qkv[.., .., (query_pos + this.num_key_value_heads * this.head_dim)..];
+            query_states = query_states.view(bsz, q_len, this.num_heads, this.head_dim).transpose(1, 2);
+            key_states = key_states.view(bsz, q_len, this.num_key_value_heads, this.head_dim).transpose(1, 2);
+            value_states = value_states.view(bsz, q_len, this.num_key_value_heads, this.head_dim).transpose(1, 2);
+
+            var kv_seq_len = key_states.IntShape()[^2];
+            var past_key_value = input.cache;
+            if (past_key_value is not null)
+            {
+                kv_seq_len += past_key_value.GetUsableLength(kv_seq_len, this.layer_idx);
+            }
+
+            var embOutput = this.rotary_emb.forward(new Phi3RotaryEmbeddingInput(value_states, positionIds, kv_seq_len));
+            (var cos, var sin) = (embOutput.Cos, embOutput.Sin);
+
+            (query_states, key_states) = Utils.ApplyRotaryPosEmb(query_states, key_states, cos, sin);
+
+            if (past_key_value is not null)
+            {
+                (key_states, value_states) = past_key_value.UpdateKVCache(key_states, value_states, this.layer_idx);
+            }
+
+            // repeat k/v heads if n_kv_heads < n_heads
+            key_states = Utils.Phi3RepeatKV(key_states, this.num_key_value_groups);
+            value_states = Utils.Phi3RepeatKV(value_states, this.num_key_value_groups);
+
+            var attn_weights = torch.matmul(query_states, key_states.transpose(2, 3));
+            attn_weights = attn_weights / Math.Sqrt(this.head_dim);
+
+            attn_weights.shape.Should().BeEquivalentTo(new long[] { bsz, this.num_heads, q_len, kv_seq_len });
+
+            var attention_mask = input.attention_mask;
+            if (attention_mask is not null)
+            {
+                attention_mask.shape.Should().BeEquivalentTo(new long[] { bsz, 1, q_len, kv_seq_len });
+                attn_weights = attn_weights + attention_mask;
+            }
+
+            // upscale attention to fp32 to avoid overflow
+            attn_weights = nn.functional.softmax(attn_weights, dim: -1, dtype: ScalarType.Float32).to(value_states.dtype);
+            attn_weights = nn.functional.dropout(attn_weights, this.attention_dropout, this.training);
+
+            var attn_output = torch.matmul(attn_weights, value_states);
+
+            attn_output.shape.Should().BeEquivalentTo(new long[] { bsz, this.num_heads, q_len, this.head_dim });
+
+            attn_output = attn_output.transpose(1, 2).contiguous();
+            attn_output = attn_output.reshape(bsz, q_len, this.hidden_size);
+
+            attn_output = this.o_proj.forward(attn_output);
+
+            return new(attn_output.MoveToOuterDisposeScope(), output_attentions ? attn_weights.MoveToOuterDisposeScope() : null, past_key_value);
         }
-
-        var embOutput = this.rotary_emb.forward(new Phi3RotaryEmbeddingInput(value_states, positionIds, kv_seq_len));
-        (var cos, var sin) = (embOutput.Cos, embOutput.Sin);
-
-        (query_states, key_states) = Utils.ApplyRotaryPosEmb(query_states, key_states, cos, sin);
-
-        if (past_key_value is not null)
-        {
-            (key_states, value_states) = past_key_value.UpdateKVCache(key_states, value_states, this.layer_idx);
-        }
-
-        // repeat k/v heads if n_kv_heads < n_heads
-        key_states = Utils.Phi3RepeatKV(key_states, this.num_key_value_groups);
-        value_states = Utils.Phi3RepeatKV(value_states, this.num_key_value_groups);
-
-        var attn_weights = torch.matmul(query_states, key_states.transpose(2, 3));
-        attn_weights = attn_weights / Math.Sqrt(this.head_dim);
-
-        attn_weights.shape.Should().BeEquivalentTo(new long[] { bsz, this.num_heads, q_len, kv_seq_len });
-
-        var attention_mask = input.attention_mask;
-        if (attention_mask is not null)
-        {
-            attention_mask.shape.Should().BeEquivalentTo(new long[] { bsz, 1, q_len, kv_seq_len });
-            attn_weights = attn_weights + attention_mask;
-        }
-
-        // upscale attention to fp32 to avoid overflow
-        attn_weights = nn.functional.softmax(attn_weights, dim: -1, dtype: ScalarType.Float32).to(value_states.dtype);
-        attn_weights = nn.functional.dropout(attn_weights, this.attention_dropout, this.training);
-
-        var attn_output = torch.matmul(attn_weights, value_states);
-
-        attn_output.shape.Should().BeEquivalentTo(new long[] { bsz, this.num_heads, q_len, this.head_dim });
-
-        attn_output = attn_output.transpose(1, 2).contiguous();
-        attn_output = attn_output.reshape(bsz, q_len, this.hidden_size);
-
-        attn_output = this.o_proj.forward(attn_output);
-
-        return new(attn_output, output_attentions ? attn_weights : null, past_key_value);
     }
 }
