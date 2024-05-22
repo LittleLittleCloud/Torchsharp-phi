@@ -1,6 +1,8 @@
 ﻿using System.Runtime.InteropServices;
+using AutoGen.Core;
 using FluentAssertions;
 using Phi;
+using Phi.Agent;
 using Phi.Pipeline;
 using TorchSharp;
 using static TorchSharp.torch;
@@ -27,14 +29,23 @@ var pipeline = new CasualLMPipeline(tokenizer, model, device);
 timer.Stop();
 Console.WriteLine($"Phi3 loaded in {timer.ElapsedMilliseconds / 1000} s");
 
-// QA Format
-int maxLen = 1024;
-float temperature = 0.0f;
-Console.WriteLine($"QA Format: maxLen: {maxLen} temperature: {temperature}");
-var prompt = "Can you provide ways to eat combinations of bananas and dragonfruits?";
-// wait for user to press enter
-Console.WriteLine($"Prompt: {prompt}");
-Console.WriteLine("Press enter to continue inferencing QA format");
+// agent
+var agent = new CausalMLPipelineAgent(pipeline, "assistant")
+    .RegisterPrintMessage();
 
-Console.WriteLine(prompt);
-pipeline.Generate(prompt, maxLen: maxLen, stopSequences: ["<|end|>"], temperature: temperature, device: device);
+var reply = await agent.SendAsync("count to 3");
+
+reply.Should().BeOfType<TextMessage>();
+var content = reply.GetContent();
+Console.WriteLine(content);
+//// QA Format
+//int maxLen = 1024;
+//float temperature = 0.0f;
+//Console.WriteLine($"QA Format: maxLen: {maxLen} temperature: {temperature}");
+//var prompt = "Can you provide ways to eat combinations of bananas and dragonfruits?";
+//// wait for user to press enter
+//Console.WriteLine($"Prompt: {prompt}");
+//Console.WriteLine("Press enter to continue inferencing QA format");
+
+//Console.WriteLine(prompt);
+//pipeline.Generate(prompt, maxLen: maxLen, stopSequences: ["<|end|>"], temperature: temperature, device: device);

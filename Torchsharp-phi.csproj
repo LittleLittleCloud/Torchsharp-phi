@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>Phi</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -13,8 +13,10 @@
 
   
   <ItemGroup>
+    <PackageReference Include="AutoGen.Core" Version="0.0.13" />
     <PackageReference Include="FluentAssertions" Version="7.0.0-alpha.3" />
-    <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.21.1" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="0.22.0-preview.24271.1" />
     <PackageReference Include="TorchSharp" Version="$(TorchSharpVersion)" />
     <PackageReference Include="ShellProgressBar" Version="5.2.0" />
     <!-- use the following package if you are on windows -->

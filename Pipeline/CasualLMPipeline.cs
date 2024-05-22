@@ -94,7 +94,7 @@ public class CasualLMPipeline
                 }
                 if (eosReached.all().item<bool>())
                 {
-                    // pBar.WriteLine("EOS reached");
+                     //pBar.WriteLine("EOS reached");
                     // pBar.Tick(maxLen);
                     break;
                 }
@@ -103,7 +103,7 @@ public class CasualLMPipeline
                 // pBar.Tick(curPos, message);
                 var nextTokenIds = nextToken.to_type(ScalarType.Int32).data<int>().ToArray();
                 var nextTokenStr = this.tokenizer.Decode(nextTokenIds);
-                Console.Write(nextTokenStr);
+                Console.WriteLine(nextTokenStr);
 
                 prevPos = curPos;
 
