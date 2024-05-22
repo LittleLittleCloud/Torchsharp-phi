@@ -44,14 +44,15 @@ public class Phi3Tests
     {
         var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-4k-instruct";
         var tokenizer = LLama2Tokenizer.FromPretrained(modelWeightFolder);
-        //tokenizer.BosId.Should().Be(1);
-        //tokenizer.EosId.Should().Be(32000);
+        tokenizer.BosId.Should().Be(1);
+        tokenizer.EosId.Should().Be(2);
         var messages = new string[]
         {
             "Can you provide ways to eat combinations of bananas and dragonfruits?",
             "Sure! Here are some ways to eat bananas and dragonfruits together: 1. Banana and dragonfruit smoothie: Blend bananas and dragonfruits together with some milk and honey. 2. Banana and dragonfruit salad: Mix sliced bananas and dragonfruits together with some lemon juice and honey.",
             "What about solving an 2x + 3 = 7 equation?",
             "\nCount to 3\n",
+            //"<unk><unk>",
             "<|user|>\nCount to 3<|end|>\n<|assistant|>",
         };
         var sb = new StringBuilder();

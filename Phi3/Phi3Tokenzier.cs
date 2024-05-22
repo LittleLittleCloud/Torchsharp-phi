@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Phi;
@@ -90,20 +92,23 @@ public class LLama2Tokenizer : ITokenizer
     private const int userSymbolId = 32010;
     private const int assistantSymbolId = 32001;
     private const int endSymbolId = 32007;
-    private int[] systemTagIds;
-    private int[] userTagIds;
-    private int[] assistantTagIds;
-    private int[] endTagIds;
+    private Dictionary<string, int> specialTokenMap = new Dictionary<string, int>
+    {
+        { systemSymbol, systemSymbolId },
+        { userSymbol, userSymbolId },
+        { assistantSymbol, assistantSymbolId },
+        { endSymbol, endSymbolId }
+	};
 
     public LLama2Tokenizer(string modelPath, bool addPrecedingSpace = true)
     {
         var modelStream = File.OpenRead(modelPath);
         this.addPrecedingSpace = addPrecedingSpace;
         this.tokenizer = (SentencePieceBpe)Tokenizer.CreateLlama(modelStream, false, false);
-        this.systemTagIds = this.tokenizer.EncodeToIds(systemSymbol, false, false, false, false).ToArray();
-        this.userTagIds = this.tokenizer.EncodeToIds(userSymbol, false, false, false, false).ToArray();
-        this.assistantTagIds = this.tokenizer.EncodeToIds(assistantSymbol, false, false, false, false).ToArray();
-        this.endTagIds = this.tokenizer.EncodeToIds(endSymbol, false, false, false, false).ToArray();
+
+        // use reflection to set the readonly ByteFallback property to false
+        //var backingField = typeof(SentencePieceBpe).GetField("<ByteFallback>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance);
+        //backingField.SetValue(this.tokenizer, false);
     }
     //public LLama2Tokenizer(string vocabPath, string mergesPath, bool addPrecedingSpace = true, int padToken = -1, int startToken = 1, int endToken = 2)
     //{
@@ -240,30 +245,46 @@ public class LLama2Tokenizer : ITokenizer
 
     public int[] Encode(string input, bool bos, bool eos)
     {
-        var tokens = this.tokenizer.EncodeToIds(input).ToArray();
+        // step 1:
+        // replace all special tokens to <unk>
+        var re = new Regex($"{systemSymbol.Replace("|", "\\|")}|{userSymbol.Replace("|", "\\|")}|{assistantSymbol.Replace("|", "\\|")}|{endSymbol.Replace("|", "\\|")}");
+        var matches = re.Matches(input);
+        var matchesList = new List<string>();
+        var tokens = new List<int>();
+        foreach (Match match in matches)
+        {
+            // replace the first special tokens with <unk>
+            var specialToken = match.Value;
+            var index = input.IndexOf(specialToken);
+            var subString = input.Substring(0, index);
+            var subTokens = this.tokenizer.EncodeToIds(subString, addBeginningOfSentence: false, addEndOfSentence: false).ToArray();
+            tokens.AddRange(subTokens);
+            tokens.Add(this.specialTokenMap[specialToken]);
+            input = input.Remove(0, index + specialToken.Length);
+		}
+
+        tokens.AddRange(this.tokenizer.EncodeToIds(input, addBeginningOfSentence: false, addEndOfSentence: false).ToArray());
         if (bos)
         {
-            tokens = new int[] { this.BosId }.Concat(tokens).ToArray();
+            tokens.Insert(0, this.BosId);
         }
         if (eos)
         {
-            tokens = tokens.Concat([this.EosId]).ToArray();
+            tokens.Add(this.EosId);
         }
-        var tokenString = string.Join(",", tokens);
-        var userTagString = string.Join(",", this.userTagIds);
-        var systemTagString = string.Join(",", this.systemTagIds);
-        var assistantTagString = string.Join(",", this.assistantTagIds);
-        var endTagString = string.Join(",", this.endTagIds);
 
-        tokenString = tokenString.Replace(userTagString, userSymbolId.ToString());
-        tokenString = tokenString.Replace(systemTagString, systemSymbolId.ToString());
-        tokenString = tokenString.Replace(assistantTagString, assistantSymbolId.ToString());
-        tokenString = tokenString.Replace(endTagString, endSymbolId.ToString());
-
-        tokens = tokenString.Split(',').Select(int.Parse).ToArray();
+  //      // for each token = 0, replace it with the token id of matches list
+  //      for (int i = 0; i < tokens.Length; i++)
+  //      {
+		//	if (tokens[i] == 0)
+  //          {
+  //              tokens[i] = specialTokenMap[matchesList[0]];
+		//		matchesList.RemoveAt(0);
+		//	}
+		//}
 
         Console.WriteLine($"tokens: {string.Join(",", tokens)}");
 
-        return tokens;
+        return tokens.ToArray();
     }
 }
