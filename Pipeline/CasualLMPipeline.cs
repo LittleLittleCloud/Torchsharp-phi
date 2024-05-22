@@ -99,11 +99,10 @@ public class CasualLMPipeline
                     break;
                 }
 
-                var message = $"Generating Token {curPos}/{maxLen}";
                 // pBar.Tick(curPos, message);
                 var nextTokenIds = nextToken.to_type(ScalarType.Int32).data<int>().ToArray();
                 var nextTokenStr = this.tokenizer.Decode(nextTokenIds);
-                Console.WriteLine(nextTokenStr);
+                Console.Write(nextTokenStr);
 
                 prevPos = curPos;
 

@@ -33,7 +33,9 @@ Console.WriteLine($"Phi3 loaded in {timer.ElapsedMilliseconds / 1000} s");
 var agent = new CausalMLPipelineAgent(pipeline, "assistant")
     .RegisterPrintMessage();
 
-var reply = await agent.SendAsync("count to 3");
+var systemMessage = new TextMessage(Role.System, "You are a helpful AI assistant that always respond in JSON format");
+var userMessage = new TextMessage(Role.User, "Convert the following text to JSON format: 'Hello, World!'");
+var reply = await agent.SendAsync(chatHistory: [systemMessage, userMessage]);
 
 reply.Should().BeOfType<TextMessage>();
 var content = reply.GetContent();
