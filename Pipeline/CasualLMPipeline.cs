@@ -43,8 +43,8 @@ public class CasualLMPipeline
     {
         var batch = inputIds.shape[0];
         var device = inputIds.device;
-        var minPromptLen = (int)inputIds.shape[1];
-        var totalLen = minPromptLen + maxLen;
+        var promptLength = (int)inputIds.shape[1];
+        var totalLen = promptLength + maxLen;
         if (stopTokenSequence == null)
         {
             stopTokenSequence = [[this.tokenizer.EosId]];
@@ -60,13 +60,13 @@ public class CasualLMPipeline
             var eosReached = torch.tensor(new bool[batch], device: device);
             torch.Tensor? logits = default;
             var cache = new DynamicKVCache();
-            if (minPromptLen == totalLen)
+            if (promptLength == totalLen)
             {
                 var input = new CasualLMModelInput(inputIds, attentionMask, past_key_values_length: 0);
                 var output = this.model.forward(input);
                 logits = output.logits;
             }
-            for (int curPos = minPromptLen; curPos != totalLen; curPos++)
+            for (int curPos = promptLength; curPos != totalLen; curPos++)
             {
                 var input = new CasualLMModelInput(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], past_key_values_length: prevPos);
                 var output = this.model.forward(input);
@@ -105,10 +105,18 @@ public class CasualLMPipeline
                 Console.Write(nextTokenStr);
 
                 prevPos = curPos;
-
             }
 
-            return (inputIds, logits!);
+            if (echo)
+            {
+                // return entire inputIds and logits
+                return (inputIds, logits!);
+            }
+            else
+            {
+                // return [batch_size, promptLength..] and [batch_size, promptLength.., vocab_size]
+                return (inputIds[.., promptLength..], logits![.., promptLength..]);
+            }
         }
     }
 
