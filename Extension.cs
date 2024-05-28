@@ -17,10 +17,11 @@ public static class Extension
         bool eos = false,
         bool echo = false)
     {
+        using var __ = NewDisposeScope();
         var inputIds = pipeline.Tokenizer.Encode(prompt, bos, eos);
         var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
         var attentionMask = torch.ones_like(inputTensor);
-        var stopTokenIds = stopSequences == null ? [[ pipeline.Tokenizer.EosId ]] : stopSequences.Select(x => pipeline.Tokenizer.Encode(x, bos, eos)).ToArray();
+        var stopTokenIds = stopSequences == null ? [[ pipeline.Tokenizer.EosId ]] : stopSequences.Select(x => pipeline.Tokenizer.Encode(x, false, false)).ToArray();
         (var token, var _) = pipeline.Generate(inputTensor, attentionMask, temperature: temperature, maxLen: maxLen, topP: topP, stopTokenSequence: stopTokenIds, echo: echo);
 
         var tokenIds = token[0].to_type(ScalarType.Int32).data<int>().ToArray();

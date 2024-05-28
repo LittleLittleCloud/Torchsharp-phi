@@ -3,91 +3,23 @@ using System.Text.Json;
 using Microsoft.ML.Tokenizers;
 using Phi;
 
-public class Norm : Normalizer
-{
-    public override NormalizedString Normalize(string original)
-    {
-        // replace space with Ġ
-        var normalized = original.Replace(" ", "Ġ");
-
-        // replace \r\n with Ċ
-        normalized = normalized.Replace("\r\n", "č");
-
-        // replace newline with Ċ
-        normalized = normalized.Replace("\n", "Ċ");
-
-        return new NormalizedString(original, normalized, null, isOneToOneMapping: true);
-    }
-}
-
-
-public class PreTokenizer : Microsoft.ML.Tokenizers.PreTokenizer
-{
-    public override IReadOnlyList<Split> PreTokenize(string sentence)
-    {
-        var split = new Split(sentence, new(0, sentence.Length));
-
-        return new List<Split> { split };
-    }
-}
-
-public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
-{
-    private const char spaceReplacement = 'Ġ';
-
-    private const char newlineReplacement = 'Ċ';
-
-    private const char carriageReturnReplacement = 'č';
-    private string bos = "<s>";
-    private string eos = "</s>";
-
-    public TokenizeDecoder(string bos = "<s>", string eos = "</s>")
-    {
-        this.bos = bos;
-        this.eos = eos;
-    }
-
-    public override string Decode(IEnumerable<string> tokens)
-    {
-        var str = string.Join("", tokens);
-        str = str.Replace(spaceReplacement, ' ');
-        str = str.Replace(newlineReplacement, '\n');
-        str = str.Replace(carriageReturnReplacement.ToString(), Environment.NewLine);
-
-        if (str.StartsWith(bos))
-        {
-            str = str.Substring(bos.Length);
-        }
-
-        if (str.EndsWith(eos))
-        {
-            str = str.Substring(0, str.Length - eos.Length);
-        }
-
-        return str;
-    }
-}
-
 public class Phi2Tokenizer : ITokenizer
 {
-    private Tokenizer tokenizer;
+    private CodeGen tokenizer;
     private bool addPrecedingSpace;
+    private readonly int _bosId;
+    private readonly int _eosId;
 
     public Phi2Tokenizer(
-        string vocabPath,
-        string mergesPath,
+        CodeGen tokenizer,
         bool addPrecedingSpace,
-        string uknToken,
-        string bosToken,
-        string eosToken)
+        int bosId,
+        int eosId)
     {
+        this.tokenizer = tokenizer;
         this.addPrecedingSpace = addPrecedingSpace;
-        var bpe = new Bpe(vocabPath, mergesPath);
-        this.tokenizer = new Tokenizer(bpe, preTokenizer: new PreTokenizer(), normalizer: new Norm());
-        this.BosId = this.tokenizer.Model.TokenToId(bosToken) ?? throw new Exception("Failed to get bos id");
-        this.EosId = this.tokenizer.Model.TokenToId(eosToken) ?? throw new Exception("Failed to get eos id");
-        var decoder = new TokenizeDecoder(this.tokenizer.Model.IdToToken(this.BosId)!, this.tokenizer.Model.IdToToken(this.EosId)!);
-        this.tokenizer.Decoder = decoder;
+        _bosId = bosId;
+        _eosId = eosId;
     }
 
     public static Phi2Tokenizer FromPretrained(
@@ -95,46 +27,20 @@ public class Phi2Tokenizer : ITokenizer
         string vocabFile = "vocab.json",
         string mergesFile = "merges.txt",
         string specialTokensFile = "special_tokens_map.json",
-        bool addPrecedingSpace = false,
-        string uknToken = "<|endoftext|>",
-        string bosToken = "<|endoftext|>",
-        string eosToken = "<|endoftext|>")
+        bool addPrecedingSpace = false)
     {
         var vocabPath = Path.Combine(folder, vocabFile);
         var mergesPath = Path.Combine(folder, mergesFile);
         var specialTokenMapPath = Path.Combine(folder, specialTokensFile);
-
-        var specialTokenMap = new Dictionary<string, string>();
-        if (File.Exists(Path.Combine(folder, specialTokensFile)))
-        {
-            specialTokenMap = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(specialTokenMapPath)) ?? throw new Exception("Failed to load special token map");
-        }
-
-        if (specialTokenMap.ContainsKey("bos_token"))
-        {
-            bosToken = specialTokenMap["bos_token"];
-        }
-
-        if (specialTokenMap.ContainsKey("eos_token"))
-        {
-            eosToken = specialTokenMap["eos_token"];
-        }
-
-        if (specialTokenMap.ContainsKey("unk_token"))
-        {
-            uknToken = specialTokenMap["unk_token"];
-        }
-
-        return new Phi2Tokenizer(vocabPath, mergesPath, addPrecedingSpace, uknToken, bosToken, eosToken);
+        using var vocabStream = File.OpenRead(vocabPath);
+        using var mergesStream = File.OpenRead(mergesPath);
+        var codeGenTokenizer = Tokenizer.CreatePhi2(vocabStream, mergesStream) as CodeGen;
+        return new Phi2Tokenizer(codeGenTokenizer!, addPrecedingSpace, codeGenTokenizer!.BeginningOfSentenceId.GetValueOrDefault(), codeGenTokenizer.EndOfSentenceId.GetValueOrDefault());
     }
 
-    public int VocabSize => this.tokenizer.Model.GetVocabSize();
+    public int BosId { get => this.tokenizer.BeginningOfSentenceId!.Value; }
 
-    public int PadId { get; }
-
-    public int BosId { get; }
-
-    public int EosId { get; }
+    public int EosId { get => this.tokenizer.EndOfSentenceId!.Value; }
 
     public string Decode(int[] input)
     {
@@ -147,10 +53,6 @@ public class Phi2Tokenizer : ITokenizer
         return str;
     }
 
-    public int TokenToId(string token)
-    {
-        return this.tokenizer.Model.TokenToId(token) ?? throw new Exception("Failed to get token id");
-    }
 
     public int[] Encode(string input, bool bos = false, bool eos = false)
     {
@@ -158,14 +60,14 @@ public class Phi2Tokenizer : ITokenizer
         {
             input = " " + input;
         }
-        var tokens = this.tokenizer.Encode(input).Ids.ToArray();
+        var tokens = this.tokenizer.EncodeToIds(input).ToArray();
         if (bos)
         {
-            tokens = new int[] { this.BosId }.Concat(tokens).ToArray();
+            tokens = new int[] { _bosId }.Concat(tokens).ToArray();
         }
         if (eos)
         {
-            tokens = tokens.Concat(new int[] { this.EosId }).ToArray();
+            tokens = tokens.Concat(new int[] { _eosId }).ToArray();
         }
         return tokens;
     }
