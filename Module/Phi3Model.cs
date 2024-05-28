@@ -33,6 +33,8 @@ public class CasualLMModelInput
 
     public Tensor? position_ids { get; set; }
 
+    public IKVCache? override_cache { get; set; }
+
     public int past_key_values_length { get; set; }
 
     public Tensor? inputs_embeds { get; set; }
@@ -79,13 +81,13 @@ public class Phi3Model : nn.Module<CasualLMModelInput, CasualLMModelOutput>
     private readonly Dropout embed_dropout;
     private readonly ModuleList<Phi3DecoderLayer> layers;
     private readonly Phi3RMSNorm norm;
-    private readonly IKVCache cache;
+    private IKVCache cache;
 
     public Phi3Model(Phi3Config config)
         : base(nameof(Phi3Model))
     {
         this.config = config;
-        this.padding_idx = config.PadTokenId;
+        this.padding_idx = config.PadTokenId ?? 32000;
         this.vocab_size = config.VocabSize;
 
         this.embed_tokens = nn.Embedding(config.VocabSize, config.HiddenSize, padding_idx: this.padding_idx, dtype: config.DType);
@@ -103,6 +105,11 @@ public class Phi3Model : nn.Module<CasualLMModelInput, CasualLMModelOutput>
 
     public override CasualLMModelOutput forward(CasualLMModelInput input)
     {
+        if (input.override_cache is not null)
+        {
+            this.cache = input.override_cache;
+        }
+
         var output_attentions = input.output_attentions;
         var output_hidden_states = input.output_hidden_states;
         var attention_mask = input.attention_mask;

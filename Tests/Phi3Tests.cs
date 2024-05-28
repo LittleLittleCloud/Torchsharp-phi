@@ -10,6 +10,7 @@ using static TorchSharp.torch;
 using TorchSharp;
 using Xunit;
 using FluentAssertions;
+using System.Text.Json;
 
 namespace Phi.Tests;
 
@@ -24,6 +25,41 @@ public class Phi3Tests
         var model = Phi3ForCasualLM.FromPretrained(modelWeightFolder, torchDtype: ScalarType.BFloat16);
         var state_dict_str = model.Peek();
         Approvals.Verify(state_dict_str);
+    }
+
+    [Fact]
+    [UseReporter(typeof(DiffReporter))]
+    [UseApprovalSubdirectory("Approvals")]
+    public async Task Phi3Medium4KShapeTest()
+    {
+        var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-medium-4k-instruct";
+        var model = Phi3ForCasualLM.FromPretrained(modelWeightFolder, torchDtype: ScalarType.BFloat16);
+        var state_dict_str = model.Peek();
+        Approvals.Verify(state_dict_str);
+    }
+
+
+    [Fact]
+    [UseReporter(typeof(DiffReporter))]
+    [UseApprovalSubdirectory("Approvals")]
+    public async Task Phi3Medium128KShapeTest()
+    {
+        var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-medium-128k-instruct";
+        var model = Phi3ForCasualLM.FromPretrained(modelWeightFolder, torchDtype: ScalarType.BFloat16);
+        var state_dict_str = model.Peek();
+        Approvals.Verify(state_dict_str);
+    }
+
+    [Fact]
+    public async Task Phi3Medium128kModelSizeTest()
+    {
+        var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-medium-128k-instruct";
+        var config = Path.Join(modelWeightFolder, "config.json");
+        var modelConfig = JsonSerializer.Deserialize<Phi3Config>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
+        torch.InitializeDevice(META);
+        var model = new Phi3ForCasualLM(modelConfig);
+
+        model = model.to("meta");
     }
 
     [Fact]
@@ -52,7 +88,6 @@ public class Phi3Tests
             "Sure! Here are some ways to eat bananas and dragonfruits together: 1. Banana and dragonfruit smoothie: Blend bananas and dragonfruits together with some milk and honey. 2. Banana and dragonfruit salad: Mix sliced bananas and dragonfruits together with some lemon juice and honey.",
             "What about solving an 2x + 3 = 7 equation?",
             "\nCount to 3\n",
-            //"<unk><unk>",
             "<|user|>\nCount to 3<|end|>\n<|assistant|>",
         };
         var sb = new StringBuilder();

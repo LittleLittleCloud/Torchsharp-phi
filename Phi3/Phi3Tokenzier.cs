@@ -9,65 +9,8 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Phi;
-
-//public class Norm : Normalizer
-//{
-//    public override NormalizedString Normalize(string original)
-//    {
-//        // replace space with _
-//        var normalized = original.Replace(" ", "▁");
-
-//        return new NormalizedString(original, normalized, null, isOneToOneMapping: true);
-//    }
-//}
-
-//public class PreTokenizer : Microsoft.ML.Tokenizers.PreTokenizer
-//{
-//    public override IReadOnlyList<Split> PreTokenize(string sentence)
-//    {
-//        var split = new Split(sentence, new(0, sentence.Length));
-
-//        return new List<Split> { split };
-//    }
-//}
-
-//public class TokenizeDecoder : Microsoft.ML.Tokenizers.TokenizerDecoder
-//{
-//    private const char spaceReplacement = '▁';
-//    private string bos = "<s>";
-//    private string eos = "</s>";
-
-//    public TokenizeDecoder(string bos = "<s>", string eos = "</s>")
-//    {
-//        this.bos = bos;
-//        this.eos = eos;
-//    }
-
-//    public override string Decode(IEnumerable<string> tokens)
-//    {
-//        var str = string.Join("", tokens);
-//        str = str.Replace(spaceReplacement, ' ');
-//        str = str.Replace("<0x0A>", Environment.NewLine);
-
-//        if (str.StartsWith(bos))
-//        {
-//            str = str.Substring(bos.Length);
-//        }
-
-//        if (str.EndsWith(eos))
-//        {
-//            str = str.Substring(0, str.Length - eos.Length);
-//        }
-//        return str;
-//    }
-//}
-
 public interface ITokenizer
 {
-    //public int VocabSize { get; }
-
-    public int PadId { get; }
-
     public int BosId { get; }
 
     public int EosId { get; }

@@ -75,7 +75,7 @@ public class Phi3Config
     public int EosTokenId { get; set; } = 32000;
 
     [JsonPropertyName("pad_token_id")]
-    public int PadTokenId { get; set; } = 32000;
+    public int? PadTokenId { get; set; } = null;
 
     [JsonPropertyName("sliding_window")]
     public int? SlidingWindow { get; set; } = null;

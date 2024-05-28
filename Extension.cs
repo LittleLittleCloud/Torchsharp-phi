@@ -17,6 +17,7 @@ public static class Extension
         bool eos = false,
         bool echo = false)
     {
+        using var __ = NewDisposeScope();
         var inputIds = pipeline.Tokenizer.Encode(prompt, bos, eos);
         var inputTensor = torch.tensor(inputIds.ToArray(), dtype: ScalarType.Int64, device: device).unsqueeze(0);
         var attentionMask = torch.ones_like(inputTensor);

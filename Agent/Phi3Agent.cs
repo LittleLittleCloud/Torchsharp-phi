@@ -4,11 +4,11 @@ using System.Text;
 
 namespace Phi.Agent;
 
-internal class CausalMLPipelineAgent : IAgent
+public class Phi3Agent : IAgent
 {
     private const char newline = '\n';
     private readonly CasualLMPipeline pipeline;
-    public CausalMLPipelineAgent(CasualLMPipeline pipeline, string name)
+    public Phi3Agent(CasualLMPipeline pipeline, string name)
     {
         this.Name = name;
         this.pipeline = pipeline;

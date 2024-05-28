@@ -41,6 +41,7 @@ public class CasualLMPipeline
         int[][]? stopTokenSequence = null,
         bool echo = false)
     {
+        using var __ = NewDisposeScope();
         var batch = inputIds.shape[0];
         var device = inputIds.device;
         var promptLength = (int)inputIds.shape[1];
@@ -62,13 +63,19 @@ public class CasualLMPipeline
             var cache = new DynamicKVCache();
             if (promptLength == totalLen)
             {
-                var input = new CasualLMModelInput(inputIds, attentionMask, past_key_values_length: 0);
+                var input = new CasualLMModelInput(inputIds, attentionMask, past_key_values_length: 0)
+                {
+                    override_cache = cache,
+                };
                 var output = this.model.forward(input);
                 logits = output.logits;
             }
             for (int curPos = promptLength; curPos != totalLen; curPos++)
             {
-                var input = new CasualLMModelInput(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], past_key_values_length: prevPos);
+                var input = new CasualLMModelInput(inputIds[.., prevPos..curPos], attentionMask[.., prevPos..curPos], past_key_values_length: prevPos)
+                {
+                    override_cache = cache,
+                };
                 var output = this.model.forward(input);
                 logits = output.logits;
                 torch.Tensor nextToken;
@@ -110,12 +117,12 @@ public class CasualLMPipeline
             if (echo)
             {
                 // return entire inputIds and logits
-                return (inputIds, logits!);
+                return (inputIds.MoveToOuterDisposeScope(), logits!.MoveToOuterDisposeScope());
             }
             else
             {
                 // return [batch_size, promptLength..] and [batch_size, promptLength.., vocab_size]
-                return (inputIds[.., promptLength..], logits![.., promptLength..]);
+                return (inputIds[.., promptLength..].MoveToOuterDisposeScope(), logits![.., promptLength..].MoveToOuterDisposeScope());
             }
         }
     }
