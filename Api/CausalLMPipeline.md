@@ -2,12 +2,38 @@
 
 The causal language model pipeline is a utility class which wraps a tokenizer and a causal language model and provides a uniformed interface for various decoding method to generate text. The pipeline is designed to be easy to use and requires only a few lines of code to generate text.
 
+# Contract
+```C#
+public abstract class CasualLMPipeline
+{
+    public virtual (
+        Tensor, // output token ids [batch_size, sequence_length]
+        Tensor // output logits [batch_size, sequence_length, vocab_size]
+    ) Generate(
+        Tensor inputIds, // input token ids [batch_size, sequence_length]
+        Tensor attentionMask, // attention mask [batch_size, sequence_length]
+        float temperature = 0.7f,
+        float topP = 0.9f,
+        int maxLen = 128,
+        int[][]? stopTokenSequence = null,
+        bool echo = false); // echo the input token ids in the output token ids
+}
+
+public CasualLMPipeline<TTokenizer, TCasualLM> : CasualLMPipeline
+    where TTokenizer : ITokenizer
+    where TCasualLM : nn.Module<CausalLanguageModelInput, CausalLanguageModelOutput>
+{
+    public CasualLMPipeline<LLama2Tokenizer, Phi3ForCasualLM> Create(LLama2Tokenizer tokenizer, Phi3ForCasualLM model);
+
+}
+```
+
 # Usage
 ```C#
-ITokenizer tokenizer;
-nn.Module<CausalLanguageModelInput, CausalLanguageModelOutput> model;
+LLama2Tokenizer tokenizer;
+Phi3ForCasualLM model;
 
-var pipeline = new CausalLMPipeline(tokenizer, model);
+var pipeline = CausalLMPipeline.Create(tokenizer, model);
 var prompt = "Once upon a time";
 // top-k sampling
 var output = pipeline.Generate(
@@ -23,20 +49,22 @@ var output = pipeline.Generate(
 );
 ```
 
-# The API in CasualLMPipeline
-## Sample (Top P sample)
+# Sampling methods
+The `CaualLMPipeline` provides a uniformed interface for various decoding methods to generate text. This saves our effort to implement different decoding methods for each model.
+
+## Sampling
 ```C#
-public (
-    Tensor, // output token ids [batch_size, sequence_length]
-    Tensor // output logits [batch_size, sequence_length, vocab_size]
-) Generate(
-    Tensor inputIds, // input token ids [batch_size, sequence_length]
-    Tensor attentionMask, // attention mask [batch_size, sequence_length]
-    float temperature = 0.7f,
-    float topP = 0.9f,
-    int maxLen = 128,
-    int[][]? stopTokenSequence = null,
-    bool echo = false); // echo the input token ids in the output token ids
+public virtual (
+        Tensor, // output token ids [batch_size, sequence_length]
+        Tensor // output logits [batch_size, sequence_length, vocab_size]
+    ) Generate(
+        Tensor inputIds, // input token ids [batch_size, sequence_length]
+        Tensor attentionMask, // attention mask [batch_size, sequence_length]
+        float temperature = 0.7f,
+        float topP = 0.9f,
+        int maxLen = 128,
+        int[][]? stopTokenSequence = null,
+        bool echo = false); // echo the input token ids in the output token ids
 ```
 
 >[!NOTE]
