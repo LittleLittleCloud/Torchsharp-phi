@@ -3,6 +3,7 @@
 - The main bottleneck of auto inference(dynamic loading) is the overhead of CPU-GPU data transfer.
 - The larger the layer size, the more acceleration we can get from GPU. So we should try to put larger layers on GPU.
 
+## Hardware: i9-14900k, 64GB memory, rtx 4090
 ### Sequential Layer
 
 | Device | Num of Layers | Layer Size | Model Size | Num of Layers on GPU | Num of Layers on CPU | Average Inference (ms) | Acceleration | % of Layer in GPU |
@@ -49,3 +50,15 @@
 | Auto   | 64             | 64MB       | 4GB        | 60                    | 4                     | 263.7                  | 32.3         | 93.8%             |
 | Auto   | 64             | 64MB       | 4GB        | 64                    | 0                     | 70.54                     | 121         | 100%              |
 | GPU    | 64             | 64MB       | 4GB        | -                     | -                     | 69.8                   | 121.7        | 100%              |
+
+## Hardware: Xeon W-2133, 32GB memory, gtx 1066
+| Device | Num of Layers | Layer Size | Model Size | Num of Layers on GPU | Num of Layers on CPU | Average Inference (ms) | Acceleration | % of Layer in GPU |
+|--------|----------------|------------|------------|-----------------------|-----------------------|------------------------|--------------|-------------------|
+| CPU    | 64             | 64MB       | 4GB        | -                     | -                     | ??                   | 1.0          | 0%                |
+| Auto   | 64             | 64MB       | 4GB        | 0                     | 64                    | 3783.4                    | 9.5          | 0%                |
+| Auto   | 64             | 64MB       | 4GB        | 12                    | 52                    | 3415                  | 11.3         | 18.8%             |
+| Auto   | 64             | 64MB       | 4GB        | 28                    | 36                    | 3004                    | 14.2         | 43.8%             |
+| Auto   | 64             | 64MB       | 4GB        | 44                    | 20                    | 2536                  | 20.2         | 68.8%             |
+| Auto   | 64             | 64MB       | 4GB        | 60                    | 4                     | 2101                  | 32.3         | 93.8%             |
+| Auto   | 64             | 64MB       | 4GB        | 64                    | 0                     | 1163                     | 121         | 100%              |
+| GPU    | 64             | 64MB       | 4GB        | -                     | -                     | 1213                   | 121.7        | 100%              |
