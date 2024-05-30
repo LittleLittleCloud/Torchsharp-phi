@@ -41,7 +41,7 @@
 
 | Device | Num of Layers | Layer Size | Model Size | Num of Layers on GPU | Num of Layers on CPU | Average Inference (ms) | Acceleration | % of Layer in GPU |
 |--------|----------------|------------|------------|-----------------------|-----------------------|------------------------|--------------|-------------------|
-| CPU    | 512            | 64MB       | 4GB        | -                     | -                     | 8501                   | 1.0          | 0%                |
+| CPU    | 64             | 64MB       | 4GB        | -                     | -                     | 8501                   | 1.0          | 0%                |
 | Auto   | 64             | 64MB       | 4GB        | 0                     | 64                    | 898                    | 9.5          | 0%                |
 | Auto   | 64             | 64MB       | 4GB        | 12                    | 52                    | 755.2                  | 11.3         | 18.8%             |
 | Auto   | 64             | 64MB       | 4GB        | 28                    | 36                    | 598                    | 14.2         | 43.8%             |
