@@ -34,7 +34,6 @@ public class Phi2Model : nn.Module<
         this.embed_dropout = nn.Dropout(config.EmbdPdrop);
         this.final_layernorm = nn.LayerNorm(config.HiddenSize, eps: config.LayerNormEps, dtype: config.Dtype);
         this.layers = new ModuleList<Phi2DecoderLayer>(Enumerable.Range(0, config.NumHiddenLayers).Select(_ => new Phi2DecoderLayer(config)).ToArray());
-
         this.RegisterComponents();
     }
 

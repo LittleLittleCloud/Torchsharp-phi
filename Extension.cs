@@ -1,3 +1,4 @@
+using Phi.Module;
 using Phi.Pipeline;
 using System.Text;
 using TorchSharp;
@@ -5,6 +6,117 @@ using static TorchSharp.torch;
 
 public static class Extension
 {
+    public static long GetSizeInBytes(this nn.Module model)
+    {
+        var state_dict = model.state_dict();
+        long size = 0;
+        foreach (var (_, value) in state_dict)
+        {
+            size += value.numel() * value.element_size();
+        }
+
+        return size;
+    }
+
+    public static Dictionary<string, long> GetSizeForEachLayerInBytes(this nn.Module model)
+    {
+        var state_dict = model.named_children();
+        var dict = new Dictionary<string, long>();
+        foreach (var (key, value) in state_dict)
+        {
+            dict[key] = value.GetSizeInBytes();
+        }
+
+        return dict;
+    }
+
+    public static DynamicLoadingModule<T, T1, TResult> ToDynamicLoadingModel<T, T1, TResult>(
+        this T model,
+        Dictionary<string, string> deviceMap)
+        where T1 : Tensor
+        where T : nn.Module<T1, TResult>
+    {
+        // for each module in the model, update device if it is IDyanmicLoadModule
+        foreach(var (key, value) in model.named_modules())
+        {
+            if (value is IDynamicLoadModule module)
+            {
+                module.Device = deviceMap[key];
+            }
+        }
+
+        return DynamicLoadingModule<T, T1, TResult>.CreateFromModel(model);
+    }
+
+    public static T RegisterDynamicLoadHook<T, T1, TResult>(
+        this T model,
+        string device)
+        where T1 : Tensor
+        where T : nn.Module<T1, TResult>
+    {
+        model.register_forward_hook((module, input, output) =>
+        {
+            if (input.device != new Device(device))
+            {
+                // offload to original device
+                module.to(new Device(device));
+            }
+            return output;
+        });
+
+        model.register_forward_pre_hook((module, input) =>
+        {
+            if (input.device != new Device(device))
+            {
+                // load to target device (same with input)
+                module.to(input.device);
+            }
+            return input;
+        });
+
+        return model;
+    }
+
+    /// <summary>
+    /// Infer the device map for each layer in the model.
+    /// The device map is a dictionary where the key is the device id (e.g. "cuda:0") and the value is the memory size in bytes of the device.
+    /// When infering the device map, each layer in the model will be placed on the device in the order of the devices list.
+    /// </summary>
+    /// <param name="model"></param>
+    /// <param name="devices">a list of device ids (e.g. ["cuda:0", "cpu", "disk"])</param>
+    /// <param name="deviceSizeMapInByte">a map where the key is the device id (e.g. "cuda:0") and the value is the memory size in bytes of the device</param>
+    /// <returns></returns>
+    public static Dictionary<string, string> InferDeviceMapForEachLayer(
+        this nn.Module model,
+        string[] devices,
+        Dictionary<string, long> deviceSizeMapInByte)
+    {
+        var layerSizeMap = model.GetSizeForEachLayerInBytes();
+        var sizeToRemainOnEachDevice = 2 * layerSizeMap.Max(x => x.Value);
+        var deviceMap = new Dictionary<string, string>();
+        foreach(var device in devices)
+        {
+            long size = deviceSizeMapInByte[device];
+            var remainingLayerSizeMap = layerSizeMap.Where(x => !deviceMap.ContainsKey(x.Key)).ToDictionary(x => x.Key, x => x.Value);
+            // larger layer fit first
+            foreach (var (key, value) in remainingLayerSizeMap.OrderByDescending(x => x.Value))
+            {
+                if (size >= value)
+                {
+                    deviceMap[key] = device;
+                    size -= value;
+                }
+
+                if (size < sizeToRemainOnEachDevice)
+                {
+                    break;
+                }
+            }
+        }
+        
+        return deviceMap;
+    }
+
     public static string Generate(
         this CasualLMPipeline pipeline,
         string prompt,

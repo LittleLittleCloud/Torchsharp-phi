@@ -1,0 +1,7 @@
+﻿{
+  "linear1": "cuda:0",
+  "linear2": "cuda:0",
+  "linear3": "cuda:0",
+  "linear4": "cpu",
+  "linear5": "cpu"
+}
