@@ -1,0 +1,8 @@
+﻿{
+  "linear1": "cuda:0",
+  "linears.0": "cuda:0",
+  "linears.1": "cuda:0",
+  "linears.2": "cpu",
+  "linears.3": "cpu",
+  "linears.4": "disk"
+}

@@ -14,12 +14,19 @@ public class Phi3MLP : torch.nn.Module<Tensor, Tensor>
     private readonly torch.nn.Module<Tensor, Tensor> activation_fn;
 
     public Phi3MLP(Phi3Config config)
+        : this(config.HiddenSize, config.IntermediateSize, config.HiddenAct)
+    {
+    }
+
+    public Phi3MLP(int hiddenSize, int intermediateSize, string hiddenAct, string? device = null)
         : base(nameof(Phi3MLP))
     {
-        this.gate_up_proj = torch.nn.Linear(config.HiddenSize, 2 * config.IntermediateSize, hasBias: false, dtype: config.DType);
-        this.down_proj = torch.nn.Linear(config.IntermediateSize, config.HiddenSize, hasBias: false, dtype: config.DType);
-        this.activation_fn = Utils.GetActivation(config.HiddenAct);
+        this.gate_up_proj = torch.nn.Linear(hiddenSize, 2 * intermediateSize, hasBias: false, device: device);
+        this.down_proj = torch.nn.Linear(intermediateSize, hiddenSize, hasBias: false, device: device);
+        this.RegisterComponents();
+        this.activation_fn = Utils.GetActivation(hiddenAct);
     }
+
     public override Tensor forward(Tensor input)
     {
         using var input1 = this.gate_up_proj.forward(input);
