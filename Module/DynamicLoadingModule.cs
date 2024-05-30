@@ -18,6 +18,8 @@ public class DynamicLoadingModule<T, T1, TResult> : torch.nn.Module<T1, TResult>
         : base(model.GetName())
     {
         this.model = model;
+
+        this.RegisterComponents();
     }
 
     public static DynamicLoadingModule<T, T1, TResult> CreateFromModel(T model)
@@ -27,6 +29,8 @@ public class DynamicLoadingModule<T, T1, TResult> : torch.nn.Module<T1, TResult>
 
     public string? Device { get; set; } = null;
 
+    public Dictionary<string, Tensor>? StateDicts { get; set;} 
+
     public override TResult forward(T1 input)
     {
         if (Device == null)
@@ -35,14 +39,14 @@ public class DynamicLoadingModule<T, T1, TResult> : torch.nn.Module<T1, TResult>
             return this.model.forward(input);
         }
 
-        if (input.device != new Device(this.Device))
+        if (input.device.ToString() != Device)
         {
             this.model.to(input.device);
         }
 
         var output = this.model.forward(input);
 
-        if (input.device != new Device(this.Device))
+        if (input.device.ToString() != Device)
         {
             this.model.to(new Device(this.Device));
         }

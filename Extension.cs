@@ -21,16 +21,36 @@ public static class Extension
     public static Dictionary<string, long> GetSizeForEachLayerInBytes(this nn.Module model)
     {
         var state_dict = model.named_children();
-        var dict = new Dictionary<string, long>();
-        foreach (var (key, value) in state_dict)
+        if (model is IDynamicLoadModule || state_dict.Count() == 0)
         {
-            dict[key] = value.GetSizeInBytes();
+            return new Dictionary<string, long> { { ".", model.GetSizeInBytes() } };
         }
+        else
+        {
+            var dict = new Dictionary<string, long>();
 
-        return dict;
+            foreach (var (key, value) in state_dict)
+            {
+                var subDict = value.GetSizeForEachLayerInBytes();
+                foreach (var (subKey, subValue) in subDict)
+                {
+                    if (subKey == ".")
+                    {
+                        dict[key] = subValue;
+                        continue;
+                    }
+                    else
+                    {
+                        dict[key + "." + subKey] = subValue;
+                    }
+                }
+            }
+
+            return dict;
+        }
     }
 
-    public static DynamicLoadingModule<T, T1, TResult> ToDynamicLoadingModel<T, T1, TResult>(
+    public static T ToDynamicLoadingModel<T, T1, TResult>(
         this T model,
         Dictionary<string, string> deviceMap)
         where T1 : Tensor
@@ -42,10 +62,11 @@ public static class Extension
             if (value is IDynamicLoadModule module)
             {
                 module.Device = deviceMap[key];
+                value.to(new Device(deviceMap[key]));
             }
         }
 
-        return DynamicLoadingModule<T, T1, TResult>.CreateFromModel(model);
+        return model;
     }
 
     public static T RegisterDynamicLoadHook<T, T1, TResult>(

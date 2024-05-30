@@ -20,7 +20,10 @@ namespace Phi.Tests;
 public class DynamicLoadingTest
 {
     private ITestOutputHelper output;
-    private int testDimension = 3000;
+    private int testDimension = 1024 * 2 * 2;
+    private int preHeat = 1;
+    private int loops = 10;
+    private int numLayers = 512;
     public DynamicLoadingTest(ITestOutputHelper output)
     {
         this.output = output;
@@ -88,7 +91,7 @@ public class DynamicLoadingTest
     [Fact]
     public async Task DynamicLoadingBenchmarkAsync()
     {
-        long[] gpuMemory = [0, 1, 2, 3, 4];
+        long[] gpuMemory = [4];
         foreach (var memory in gpuMemory)
         {
             await DynamicLoadingBenchmark(memory);
@@ -97,12 +100,16 @@ public class DynamicLoadingTest
 
     private async Task DynamicLoadingBenchmark(long gpuMemoryInGB)
     {
+        using var _ = NewDisposeScope();
         var device = "meta";
         var model = new SequentialLinear(testDimension, device);
+        var sizeInBytes = model.GetSizeInBytes();
+        var sizeInGigaBytes = 1.0f * sizeInBytes / 1024 / 1024 / 1024;
+        output.WriteLine($"SequentialLinear has {sizeInGigaBytes} GB");
         var deviceSizeMap = new Dictionary<string, long>
         {
             ["cuda:0"] = gpuMemoryInGB * 1024 * 1024 * 1024,
-            ["cpu"] = 20L * 1024 * 1024 * 1024,
+            ["cpu"] = 64L * 1024 * 1024 * 1024,
             ["disk"] = 2L * 1024 * 1024 * 1024 * 1024,
         };
 
@@ -114,16 +121,17 @@ public class DynamicLoadingTest
         var json = JsonSerializer.Serialize(deviceMap, new JsonSerializerOptions { WriteIndented = true });
         output.WriteLine(json);
         model = new SequentialLinear(testDimension, "cpu");
-        var dynamicLoadingModel = model.ToDynamicLoadingModel<SequentialLinear, Tensor, Tensor>(deviceMap);
+        model = model.ToDynamicLoadingModel<SequentialLinear, Tensor, Tensor>(deviceMap);
         var input = torch.randn(testDimension, testDimension, device: "cuda:0");
-        await BenchmarkAsync("cuda:0", input, dynamicLoadingModel);
+        await BenchmarkAsync("cuda:0", input, model);
     }
 
     private async Task BenchmarkAsync(string device, Tensor input, nn.Module<Tensor, Tensor> model)
     {
         using var __ = torch.no_grad();
+        model.eval();
         // warm up
-        for (var i = 0; i < 10; i++)
+        for (var i = 0; i < preHeat; i++)
         {
             using var ___ = NewDisposeScope();
             var _ = model.forward(input);
@@ -133,7 +141,7 @@ public class DynamicLoadingTest
         // 1000 iterations
         var timer = System.Diagnostics.Stopwatch.StartNew();
 
-        for (var i = 0; i < 1000; i++)
+        for (var i = 0; i < loops; i++)
         {
             using var ___ = NewDisposeScope();
             var _ = model.forward(input);
@@ -141,37 +149,47 @@ public class DynamicLoadingTest
 
         timer.Stop();
 
-        output.WriteLine($"SequentialLinear on {device} took {timer.ElapsedMilliseconds} ms");
+        output.WriteLine($"SequentialLinear on {device} took {timer.ElapsedMilliseconds * 1.0f / loops} ms on average");
     }
 
 
     private class SequentialLinear : nn.Module<Tensor, Tensor>
     {
         private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear1;
-        private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear2;
-        private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear3;
-        private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear4;
-        private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear5;
+        //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear2;
+        //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear3;
+        //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear4;
+        //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear5;
 
-        public SequentialLinear(int features, string? device = null)
+        private readonly ModuleList<DynamicLoadingModule<PhiLinear, Tensor, Tensor>> linears;
+        public SequentialLinear(int features, string? device = null, int numberOfLayers = 64)
             : base(nameof(SequentialLinear))
         {
             this.linear1 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
-            this.linear2 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
-            this.linear3 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
-            this.linear4 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
-            this.linear5 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+            //this.linear2 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+            //this.linear3 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+            //this.linear4 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+            //this.linear5 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+
+            this.linears = new ModuleList<DynamicLoadingModule<PhiLinear, Tensor, Tensor>>();
+
+            for (int i = 0; i < numberOfLayers; i++)
+            {
+                this.linears.Add(DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device)));
+            }
 
             this.RegisterComponents();
         }
 
         public override Tensor forward(Tensor input)
         {
-            using var input1 = this.linear1.forward(input);
-            using var input2 = this.linear2.forward(input1);
-            using var input3 = this.linear3.forward(input2);
-            using var input4 = this.linear4.forward(input3);
-            return this.linear5.forward(input4);
+            input = linear1.forward(input);
+            foreach (var linear in linears)
+            {
+                input = linear.forward(input);
+            }
+
+            return input;
         }
     }
 }
