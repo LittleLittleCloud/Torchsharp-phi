@@ -121,7 +121,7 @@ public class DynamicLoadingTest
         var json = JsonSerializer.Serialize(deviceMap, new JsonSerializerOptions { WriteIndented = true });
         output.WriteLine(json);
         model = new SequentialLinear(testDimension, "cpu");
-        model = model.ToDynamicLoadingModel<SequentialLinear, Tensor, Tensor>(deviceMap);
+        model = model.ToDynamicLoadingModel<SequentialLinear, Tensor, Tensor>(deviceMap, "cuda:0");
         var input = torch.randn(testDimension, testDimension, device: "cuda:0");
         await BenchmarkAsync("cuda:0", input, model);
     }
@@ -156,7 +156,7 @@ public class DynamicLoadingTest
     private class SequentialLinear : nn.Module<Tensor, Tensor>
     {
         private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear1;
-        //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear2;
+        private readonly PhiLinear linear2;
         //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear3;
         //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear4;
         //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear5;
@@ -166,7 +166,7 @@ public class DynamicLoadingTest
             : base(nameof(SequentialLinear))
         {
             this.linear1 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
-            //this.linear2 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
+            this.linear2 = new PhiLinear(features, features, device: device);
             //this.linear3 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
             //this.linear4 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
             //this.linear5 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
@@ -184,9 +184,12 @@ public class DynamicLoadingTest
         public override Tensor forward(Tensor input)
         {
             input = linear1.forward(input);
+            input = linear2.forward(input);
             foreach (var linear in linears)
             {
-                input = linear.forward(input);
+                var v0 = linear.forward(input).DetachFromDisposeScope();
+                input.add_(v0);
+                v0.Dispose();
             }
 
             return input;

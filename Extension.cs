@@ -52,48 +52,41 @@ public static class Extension
 
     public static T ToDynamicLoadingModel<T, T1, TResult>(
         this T model,
-        Dictionary<string, string> deviceMap)
-        where T1 : Tensor
+        Dictionary<string, string> deviceMap,
+        string targetDevice)
         where T : nn.Module<T1, TResult>
     {
+        var dynamicModules = model.named_modules().Where(x => x.module is IDynamicLoadModule).Select(x => x.name).ToList();
         // for each module in the model, update device if it is IDyanmicLoadModule
         foreach(var (key, value) in model.named_modules())
         {
             if (value is IDynamicLoadModule module)
             {
-                module.Device = deviceMap[key];
                 value.to(new Device(deviceMap[key]));
+                if (deviceMap[key] != targetDevice)
+                {
+                    module.LoadToDeviceFunc = (nn.Module module) =>
+                    {
+                        module.to(new Device(targetDevice));
+                    };
+                    
+                    module.UnloadFromDeviceFunc = (nn.Module module) =>
+                    {
+                        module.to(new Device(deviceMap[key]));
+                    };
+                }
+            }
+            else
+            {
+                // check if the module is any sub module of IDynamicLoadModule
+                if (dynamicModules.Any(x => key.StartsWith(x)))
+                {
+                    continue;
+                }
+
+                value.to(targetDevice);
             }
         }
-
-        return model;
-    }
-
-    public static T RegisterDynamicLoadHook<T, T1, TResult>(
-        this T model,
-        string device)
-        where T1 : Tensor
-        where T : nn.Module<T1, TResult>
-    {
-        model.register_forward_hook((module, input, output) =>
-        {
-            if (input.device != new Device(device))
-            {
-                // offload to original device
-                module.to(new Device(device));
-            }
-            return output;
-        });
-
-        model.register_forward_pre_hook((module, input) =>
-        {
-            if (input.device != new Device(device))
-            {
-                // load to target device (same with input)
-                module.to(input.device);
-            }
-            return input;
-        });
 
         return model;
     }
