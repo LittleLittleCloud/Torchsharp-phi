@@ -91,7 +91,7 @@ public class DynamicLoadingTest
     [Fact]
     public async Task DynamicLoadingBenchmarkAsync()
     {
-        long[] gpuMemory = [4];
+        long[] gpuMemory = [0];
         foreach (var memory in gpuMemory)
         {
             await DynamicLoadingBenchmark(memory);
@@ -121,7 +121,7 @@ public class DynamicLoadingTest
         var json = JsonSerializer.Serialize(deviceMap, new JsonSerializerOptions { WriteIndented = true });
         output.WriteLine(json);
         model = new SequentialLinear(testDimension, "cpu");
-        model = model.ToDynamicLoadingModel<SequentialLinear, Tensor, Tensor>(deviceMap, "cuda:0");
+        model = model.ToDynamicLoadingModel(deviceMap, "cuda:0");
         var input = torch.randn(testDimension, testDimension, device: "cuda:0");
         await BenchmarkAsync("cuda:0", input, model);
     }

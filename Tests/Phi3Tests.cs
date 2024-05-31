@@ -85,7 +85,7 @@ public class Phi3Tests
         modelConfig.DType = dtype;
         var model = new Phi3ForCasualLM(modelConfig);
 
-        var size = model.GetSizeForEachLayerInBytes();
+        var size = model.GetSizeForEachDynamicLayerInBytes();
         // convert size to MB
         var sizeInMB = size.ToDictionary(x => x.Key, x => x.Value * 1.0f / 1024 / 1024);
 

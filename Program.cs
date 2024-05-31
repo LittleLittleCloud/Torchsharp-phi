@@ -8,7 +8,7 @@ using Phi.Pipeline;
 using TorchSharp;
 using static TorchSharp.torch;
 
-var phi2Folder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-128k-instruct";
+var phi2Folder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-4k-instruct";
 var device = "cpu";
 
 if (device == "cuda")
@@ -38,7 +38,7 @@ var deviceMap = model.InferDeviceMapForEachLayer(
 var json = JsonSerializer.Serialize(deviceMap, new JsonSerializerOptions { WriteIndented = true });
 Console.WriteLine(json);
 
-model = model.ToDynamicLoadingModel<Phi3ForCasualLM, CasualLMModelInput, CasualLMModelOutput>(deviceMap, "cuda:0");
+model = model.ToDynamicLoadingModel(deviceMap, "cuda:0");
 
 var pipeline = new CasualLMPipeline(tokenizer, model, device);
 
