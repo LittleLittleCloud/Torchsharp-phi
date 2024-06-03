@@ -76,6 +76,26 @@ public class Phi3Tests
     [Fact]
     [UseReporter(typeof(DiffReporter))]
     [UseApprovalSubdirectory("Approvals")]
+    public async Task Phi3Mini128KLayerSizeTest()
+    {
+        var dtype = ScalarType.BFloat16;
+        var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-128k-instruct";
+        var config = Path.Join(modelWeightFolder, "config.json");
+        var modelConfig = JsonSerializer.Deserialize<Phi3Config>(File.ReadAllText(config)) ?? throw new ArgumentNullException(nameof(config));
+        modelConfig.DType = dtype;
+        var model = new Phi3ForCasualLM(modelConfig);
+
+        var size = model.GetSizeForEachDynamicLayerInBytes();
+        // convert size to MB
+        var sizeInMB = size.ToDictionary(x => x.Key, x => x.Value * 1.0f / 1024 / 1024);
+
+        var json = JsonSerializer.Serialize(sizeInMB, new JsonSerializerOptions { WriteIndented = true });
+        Approvals.Verify(json);
+    }
+
+    [Fact]
+    [UseReporter(typeof(DiffReporter))]
+    [UseApprovalSubdirectory("Approvals")]
     public async Task TokenizerTest()
     {
         var modelWeightFolder = "C:\\Users\\xiaoyuz\\source\\repos\\Phi-3-mini-4k-instruct";

@@ -55,7 +55,7 @@ public class Phi3DecoderLayerOutput
     public IKVCache? past_key_value { get; set; }
 }
 
-public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLayerOutput>
+public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLayerOutput>, IDynamicLoadModule
 {
     private readonly Phi3Config config;
     private readonly nn.Module<Phi3AttentionInput, Phi3AttentionOutput> self_attn;
@@ -85,8 +85,17 @@ public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLaye
         this.resid_mlp_dropout = nn.Dropout(config.ResidPdrop);
         this.post_attention_layernorm = new Phi3RMSNorm(config.HiddenSize, config.RmsNormEps, config.DType);
     }
+
+    public Action<nn.Module>? LoadToDeviceFunc { get; set; }
+
+    public Action<nn.Module>? UnloadFromDeviceFunc { get; set; }
+
     public override Phi3DecoderLayerOutput forward(Phi3DecoderLayerInput input)
     {
+        if (LoadToDeviceFunc != null)
+        {
+            LoadToDeviceFunc(this);
+        }
         using var _ = NewDisposeScope();
         var hidden_states = input.hidden_states;
         var residual = input.hidden_states;
@@ -104,6 +113,10 @@ public class Phi3DecoderLayer : nn.Module<Phi3DecoderLayerInput, Phi3DecoderLaye
         hidden_states = this.mlp.forward(hidden_states);
         hidden_states = residual + this.resid_mlp_dropout.forward(hidden_states);
 
+        if (UnloadFromDeviceFunc != null)
+        {
+            UnloadFromDeviceFunc(this);
+        }
         return new Phi3DecoderLayerOutput(hidden_states.MoveToOuterDisposeScope(), self_attn_weights?.MoveToOuterDisposeScope(), present_key_value);
     }
 }
