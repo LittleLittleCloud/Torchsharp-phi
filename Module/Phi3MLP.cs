@@ -14,15 +14,15 @@ public class Phi3MLP : torch.nn.Module<Tensor, Tensor>
     private readonly torch.nn.Module<Tensor, Tensor> activation_fn;
 
     public Phi3MLP(Phi3Config config)
-        : this(config.HiddenSize, config.IntermediateSize, config.HiddenAct)
+        : this(config.HiddenSize, config.IntermediateSize, config.HiddenAct, config.DType)
     {
     }
 
-    public Phi3MLP(int hiddenSize, int intermediateSize, string hiddenAct, string? device = null)
+    public Phi3MLP(int hiddenSize, int intermediateSize, string hiddenAct, ScalarType dtype)
         : base(nameof(Phi3MLP))
     {
-        this.gate_up_proj = torch.nn.Linear(hiddenSize, 2 * intermediateSize, hasBias: false, device: device);
-        this.down_proj = torch.nn.Linear(intermediateSize, hiddenSize, hasBias: false, device: device);
+        this.gate_up_proj = torch.nn.Linear(hiddenSize, 2 * intermediateSize, hasBias: false, dtype: dtype);
+        this.down_proj = torch.nn.Linear(intermediateSize, hiddenSize, hasBias: false, dtype: dtype);
         this.RegisterComponents();
         this.activation_fn = Utils.GetActivation(hiddenAct);
     }

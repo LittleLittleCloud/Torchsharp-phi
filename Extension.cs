@@ -18,12 +18,12 @@ public static class Extension
         return size;
     }
 
-    public static Dictionary<string, long> GetSizeForEachLayerInBytes(this nn.Module model)
+    public static Dictionary<string, long> GetSizeForEachDynamicLayerInBytes(this nn.Module model)
     {
         var state_dict = model.named_children();
-        if (model is IDynamicLoadModule || state_dict.Count() == 0)
+        if (state_dict.Count() == 0)
         {
-            return new Dictionary<string, long> { { ".", model.GetSizeInBytes() } };
+            return new();
         }
         else
         {
@@ -31,69 +31,91 @@ public static class Extension
 
             foreach (var (key, value) in state_dict)
             {
-                var subDict = value.GetSizeForEachLayerInBytes();
-                foreach (var (subKey, subValue) in subDict)
+                if (value is IDynamicLoadModule)
                 {
-                    if (subKey == ".")
-                    {
-                        dict[key] = subValue;
-                        continue;
-                    }
-                    else
-                    {
-                        dict[key + "." + subKey] = subValue;
-                    }
+                    dict[key] = value.GetSizeInBytes();
                 }
+                else
+                {
+					var subDict = value.GetSizeForEachDynamicLayerInBytes();
+					foreach (var (subKey, subValue) in subDict)
+					{
+						dict[key + "." + subKey] = subValue;
+					}
+				}
             }
 
             return dict;
         }
     }
 
-    public static T ToDynamicLoadingModel<T, T1, TResult>(
+    public static T ToDynamicLoadingModel<T>(
         this T model,
-        Dictionary<string, string> deviceMap)
-        where T1 : Tensor
-        where T : nn.Module<T1, TResult>
+        Dictionary<string, string> deviceMap,
+        string targetDevice)
+        where T : nn.Module
     {
+        if (deviceMap.Count == 0)
+        {
+			model.to(new Device(targetDevice));
+
+            return model;
+		}
+
+        //var dynamicModules = model.named_modules().Where(x => x.module is IDynamicLoadModule).Select(x => x.name).ToList();
         // for each module in the model, update device if it is IDyanmicLoadModule
-        foreach(var (key, value) in model.named_modules())
+        foreach(var (key, value) in model.named_children())
         {
-            if (value is IDynamicLoadModule module)
+            if (value is IDynamicLoadModule dynamicModule)
             {
-                module.Device = deviceMap[key];
-                value.to(new Device(deviceMap[key]));
-            }
-        }
+                var device = deviceMap[key];
+				if (device != targetDevice)
+				{
+					dynamicModule.LoadToDeviceFunc = (nn.Module module) =>
+					{
+						module.to(new Device(targetDevice));
+					};
+					dynamicModule.UnloadFromDeviceFunc = (nn.Module module) =>
+					{
+						module.to(new Device(device));
+					};
+				}
 
-        return model;
-    }
-
-    public static T RegisterDynamicLoadHook<T, T1, TResult>(
-        this T model,
-        string device)
-        where T1 : Tensor
-        where T : nn.Module<T1, TResult>
-    {
-        model.register_forward_hook((module, input, output) =>
-        {
-            if (input.device != new Device(device))
+                value.to(new Device(device));
+			}
+            else
             {
-                // offload to original device
-                module.to(new Device(device));
-            }
-            return output;
-        });
+				var childrenDeviceMap = deviceMap.Where(x => x.Key.StartsWith($"{key}.")).ToDictionary(x => x.Key.Substring($"{key}.".Length), x => x.Value);
+				value.ToDynamicLoadingModel(childrenDeviceMap, targetDevice);
+			}
 
-        model.register_forward_pre_hook((module, input) =>
-        {
-            if (input.device != new Device(device))
-            {
-                // load to target device (same with input)
-                module.to(input.device);
-            }
-            return input;
-        });
+			//if (value is IDynamicLoadModule module)
+			//{
+			//    value.to(new Device(deviceMap[key]));
+			//    if (deviceMap[key] != targetDevice)
+			//    {
+			//        module.LoadToDeviceFunc = (nn.Module module) =>
+			//        {
+			//            module.to(new Device(targetDevice));
+			//        };
+
+			//        module.UnloadFromDeviceFunc = (nn.Module module) =>
+			//        {
+			//            module.to(new Device(deviceMap[key]));
+			//        };
+			//    }
+			//}
+			//else
+			//{
+			//    // check if the module is any sub module of IDynamicLoadModule
+			//    if (dynamicModules.Any(x => key.StartsWith(x)))
+			//    {
+			//        continue;
+			//    }
+
+			//    value.to(targetDevice);
+			//}
+		}
 
         return model;
     }
@@ -112,7 +134,7 @@ public static class Extension
         string[] devices,
         Dictionary<string, long> deviceSizeMapInByte)
     {
-        var layerSizeMap = model.GetSizeForEachLayerInBytes();
+        var layerSizeMap = model.GetSizeForEachDynamicLayerInBytes();
         var sizeToRemainOnEachDevice = 2 * layerSizeMap.Max(x => x.Value);
         var deviceMap = new Dictionary<string, string>();
         foreach(var device in devices)
