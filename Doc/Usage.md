@@ -30,6 +30,9 @@ var kernel = Kernel.CreateBuilder()
     // the type of the tokenizer and the model are explicitly specified
     // here for clarity, but the compiler can infer them
     // The typed pipeline prevent developers from passing an arbitrary CausalLMPipeline
+    // The reason why we don't want to allow developers to pass an arbitrary CausalLMPipeline is because
+    // - the model and the tokenizer must be compatible
+    // - the chat template must be compatible with the model. e.g. In `AddPhi3AsChatCompletionService`, the chat template is fixed to "<|user|>{prompt}<|end|><assistant>"
     .AddPhi3AsChatCompletionService<LLama2Tokenizer, Phi3ForCasualLM>(pipeline)
     .Build();
 ```
@@ -49,7 +52,7 @@ var reply = await agent.SendAsync("Tell me a joke");
 ### Consume model like an OpenAI chat completion service
 
 > [!NOTE]
-> This feature is very useful for evaluation and benchmarking. Because most of the benchmarking frameworks are implemented in python, but support consuming openai-like api.
+> This feature is very useful for evaluation and benchmarking. Because most of the benchmarking frameworks are implemented in python, but support consuming openai-like api. Therefore we can use this feature to evaluate the model using the same benchmarking framework as other models and get comparable results.
 
 If the model is deployed as a service, developers can consume the model similar to OpenAI chat completion service.
 ```C#

@@ -6,9 +6,9 @@ A causal language model is a type of language model that predicts the next token
 # The Causal Language Model Contract
 In the remaining sections, we will describe the contract for a causal language model.
 
-## `CasualLMModelInput`
+## `CausalLMModelInput`
 ```C#
-public CasualLMModelInput
+public CausalLMModelInput
 {
     // [batch_size, sequence_length]
     public Tensor input_ids { get; set; }
@@ -38,9 +38,9 @@ public CasualLMModelInput
 }
 ```
 
-## `CasualLMModelOutput`
+## `CausalLMModelOutput`
 ```C#
-public class CasualLMModelOutput
+public class CausalLMModelOutput
 {
     // [batch_size, sequence_length, vocab_size]
     // The predicted logits for each token in the input sequence.
@@ -60,16 +60,16 @@ public class CasualLMModelOutput
 }
 ```
 
-Once both `CasualLMModelInput` and `CasualLMModelOutput` are defined, the causal language model can be implemented as follows (use Phi-3 as an example):
+Once both `CausalLMModelInput` and `CausalLMModelOutput` are defined, the causal language model can be implemented as follows (use Phi-3 as an example):
 
 ```C#
-public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput>
+public class Phi3ForCausalLM : nn.Module<CausalLMModelInput, CausalLMModelOutput>
 ```
 
 
 # What language model has been implemented using this contract in this repo?
-- `Phi3ForCasualLM`
-- `Phi2ForCasualLM`
+- `Phi3ForCausalLM`
+- `Phi2ForCausalLM`
 
 # What language model has been implemented using this pattern, but not exactly the same contract class in the other repo?
-- `LLaMAForCasualLM` (for both llama2 and llama3)
+- `LLaMAForCausalLM` (for both llama2 and llama3)

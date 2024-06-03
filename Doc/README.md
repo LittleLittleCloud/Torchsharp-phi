@@ -6,9 +6,9 @@ This folder contains the design doc for GenAI Model package
 - [Benchmark && Evaluation](./Benchmark%20&&%20Evaluation.md): how to evaluate the model from GenAI Model package
 
 ### Contracts && API
-- [Causal Language Model](./CausalLanguageModel.md)
+- [CausalLMPipeline](./CausalLMPipeline.md)
+- [CausalLMModelInput and CausalLMModelOutput](./CausalLanguageModel.md)
 - [Tokenizer](./Tokenizer.md)
-- [Causal Language Model Pipeline](./CausalLMPipeline.md)
 
 ### Need further investigation
 - [Dynamic loading](./DynamicLoading.md): load only part of model to GPU when gpu memory is limited
