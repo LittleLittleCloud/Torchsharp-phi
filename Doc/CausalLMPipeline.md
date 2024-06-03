@@ -2,9 +2,10 @@
 
 The causal language model pipeline is a utility class which wraps a tokenizer and a causal language model and provides a uniformed interface for various decoding method to generate text. The pipeline is designed to be easy to use and requires only a few lines of code to generate text.
 
+In Microsoft.ML.GenAI, we will provide a generic `CausalLMPipeline` class plus a typed `CausalLMPipeline` class which specifies the type parameters for the tokenizer and the causal language model. The typed `CausalLMPipeline` class make it easier to develop consuming method for semantic kernel. see [here](./Usage.md#consume-model-from-semantic-kernel) for more details
 # Contract
 ```C#
-public abstract class CasualLMPipeline
+public abstract class CausalLMPipeline
 {
     public virtual (
         Tensor, // output token ids [batch_size, sequence_length]
@@ -19,11 +20,11 @@ public abstract class CasualLMPipeline
         bool echo = false); // echo the input token ids in the output token ids
 }
 
-public CasualLMPipeline<TTokenizer, TCasualLM> : CasualLMPipeline
+public CasualLMPipeline<TTokenizer, TCausalLM> : CausalLMPipeline
     where TTokenizer : ITokenizer
-    where TCasualLM : nn.Module<CausalLanguageModelInput, CausalLanguageModelOutput>
+    where TCausalLM : nn.Module<CausalLanguageModelInput, CausalLanguageModelOutput>
 {
-    public CasualLMPipeline<LLama2Tokenizer, Phi3ForCasualLM> Create(LLama2Tokenizer tokenizer, Phi3ForCasualLM model);
+    public CausalLMPipeline<LLama2Tokenizer, Phi3ForCasualLM> Create(LLama2Tokenizer tokenizer, Phi3ForCasualLM model);
 
 }
 ```
@@ -31,7 +32,7 @@ public CasualLMPipeline<TTokenizer, TCasualLM> : CasualLMPipeline
 # Usage
 ```C#
 LLama2Tokenizer tokenizer;
-Phi3ForCasualLM model;
+Phi3ForCausalLM model;
 
 var pipeline = CausalLMPipeline.Create(tokenizer, model);
 var prompt = "Once upon a time";
@@ -50,7 +51,7 @@ var output = pipeline.Generate(
 ```
 
 # Sampling methods
-The `CaualLMPipeline` provides a uniformed interface for various decoding methods to generate text. This saves our effort to implement different decoding methods for each model.
+The `CausalLMPipeline` provides a uniformed interface for various decoding methods to generate text. This saves our effort to implement different decoding methods for each model.
 
 ## Sampling
 ```C#

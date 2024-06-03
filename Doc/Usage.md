@@ -9,7 +9,7 @@ var pathToPhi3 = "path/to/phi3";
 var tokenizer = LLama2Tokenizer.FromPretrained(pathToPhi3);
 var phi3CausalModel = Phi3ForCasualLM.FromPretrained(pathToPhi3);
 
-var pipeline = new CausalLMPipeline(tokenizer, phi3CausalModel);
+CausalLMPipeline<LLama2Tokenizer, Phi3ForCasualLM> pipeline = new CausalLMPipeline(tokenizer, phi3CausalModel);
 
 var prompt = "<|user|>Once upon a time<|end|><assistant>";
 var output = pipeline.Generate(
@@ -25,9 +25,12 @@ In most cases, developers would like to consume the model in a uniformed way. In
 var pathToPhi3 = "path/to/phi3";
 var tokenizer = LLama2Tokenizer.FromPretrained(pathToPhi3);
 var phi3CausalModel = Phi3ForCasualLM.FromPretrained(pathToPhi3);
-var pipeline = new CausalLMPipeline(tokenizer, phi3CausalModel);
+CausalLMPipeline<LLama2Tokenizer, Phi3ForCasualLM> pipeline = new CausalLMPipeline(tokenizer, phi3CausalModel);
 var kernel = Kernel.CreateBuilder()
-    .AddCausalLMPipelineAsChatCompletionService(pipeline)
+    // the type of the tokenizer and the model are explicitly specified
+    // here for clarity, but the compiler can infer them
+    // The typed pipeline prevent developers from passing an arbitrary CausalLMPipeline
+    .AddPhi3AsChatCompletionService<LLama2Tokenizer, Phi3ForCasualLM>(pipeline)
     .Build();
 ```
 
@@ -46,7 +49,7 @@ var reply = await agent.SendAsync("Tell me a joke");
 ### Consume model like an OpenAI chat completion service
 
 > [!NOTE]
-> This feature is very useful for evaluation and benchmarking as well.
+> This feature is very useful for evaluation and benchmarking. Because most of the benchmarking frameworks are implemented in python, but support consuming openai-like api.
 
 If the model is deployed as a service, developers can consume the model similar to OpenAI chat completion service.
 ```C#
