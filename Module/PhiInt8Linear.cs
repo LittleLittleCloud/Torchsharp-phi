@@ -21,6 +21,9 @@ public class PhiInt8Linear : PhiLinear, IQuantizeModule
 
     public void Quantize()
     {
+        var timer = new System.Diagnostics.Stopwatch();
+        Console.WriteLine("Quantize start");
+        timer.Start();
         // scale and zero point on vector-wise
         // scale = 255 / max(weight, axis=1) - min(weight, axis=1)
         var scale = 255 / (torch.max(this.weight, 1).values - torch.min(this.weight, 1).values);
@@ -53,63 +56,32 @@ public class PhiInt8Linear : PhiLinear, IQuantizeModule
         this.register_buffer("8bit_weight", _8bitWeight);
         this.register_buffer("zeroPoint", zeroPoint);
         this.register_buffer("scale", scale);
+        timer.Stop();
+        Console.WriteLine($"Quantize end, elapsed time: {timer.ElapsedMilliseconds} ms");
     }
 
     public override Tensor forward(Tensor input)
     {
-        using var dispose = torch.NewDisposeScope();
         if (this._internal_buffers.ContainsKey("weight"))
         {
             return base.forward(input);
         }
         else
         {
-            var weight = this.get_buffer("8bit_weight").to(ScalarType.Float32).T;
+            using var dispose = torch.NewDisposeScope();
+            var weight = this.get_buffer("8bit_weight").to(ScalarType.Float32);
             var zeroPoint = this.get_buffer("zeroPoint").to(ScalarType.Float32);
             var scale = this.get_buffer("scale").to(ScalarType.Float32);
-            if (input.shape.Length == 3)
-            {
-                input = input.view(-1, input.shape[2]);
-            }
-            // quantize input
-            // b * seq * channel
-            var inputScale = 255 / (torch.max(input, -1).values - torch.min(input, -1).values);
-            // b * seq
-            var inputZeroPoint = -inputScale * torch.min(input, -1).values - 128;
-            inputZeroPoint = torch.round(inputZeroPoint);
-
-            // b * seq * channel
-            var _8bitInput = torch.round(input * inputScale.view(-1, 1) + inputZeroPoint.view(-1, 1)).to(torch.float32);
-
-            // matmul
-            // input * weight = (_8bitInput - inputZeroPoint) * (_8bitWeight - zeroPoint) / (inputScale * scale)
-            //               = _8bitInput * _8bitWeight - _8bitInput * zeroPoint - inputZeroPoint * _8bitWeight + inputZeroPoint * zeroPoint / (inputScale * scale)
-            // output shape: [b, seq, hidden]
-            // seq * hidden because _8bitWeight is [channel, hidden]
-            var result = torch.matmul(_8bitInput, weight);
-
-            // _8bitInput: [b, seq, channel]
-            // zeroPoint: [channel]
-            var zeroPointExpanded = zeroPoint!.unsqueeze(0).expand(this.inFeatures, -1).to(ScalarType.Float32);
-            result -= torch.matmul(_8bitInput, zeroPointExpanded);
-
-            // inputZeroPoint: [b, seq]
-            // _8bitWeight: [channel, hidden]
-            // inputZeroPointExpanded: [b, seq, hidden]
-            var inputZeroPointExpanded = inputZeroPoint.unsqueeze(1).expand(-1, inFeatures).to(torch.float32);
-            result += torch.matmul(inputZeroPointExpanded, zeroPointExpanded);
-
-            result /= (inputScale.view(-1, 1) * scale!.view(1, -1));
-            //// use float32
-            //var input2 = input.to_type(ScalarType.Float32);
-            //var weight2 = this.weight.to_type(ScalarType.Float32);
-            //var result = torch.matmul(input2, weight2.t());
+            var restoreWeight = (weight - zeroPoint.view(-1, 1)) / scale.view(-1, 1);
+            // use float32
+            var result = torch.matmul(input.to(ScalarType.Float32), restoreWeight.T);
 
             if (this.bias is not null)
             {
                 result = result + this.bias.to_type(ScalarType.Float32);
             }
-            result.Peek("result");
+
+            //result.Peek("result");
             return result.to_type(input.dtype).MoveToOuterDisposeScope();
         }
     }

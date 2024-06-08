@@ -38,7 +38,6 @@ public class PhiLinear : nn.Module<Tensor, Tensor>
             result = result + this.bias.to_type(ScalarType.Float32);
         }
 
-        result.Peek("result");
         return result.to_type(input.dtype).MoveToOuterDisposeScope();
     }
 }
