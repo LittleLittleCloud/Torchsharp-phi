@@ -7,12 +7,20 @@ using System.Text;
 using System.Threading.Tasks;
 using TorchSharp;
 using Xunit;
+using Xunit.Abstractions;
 using static TorchSharp.torch;
 
 namespace Phi.Tests;
 
 public class PhiLint8LinearTests
 {
+    private ITestOutputHelper output;
+
+    public PhiLint8LinearTests(ITestOutputHelper output)
+    {
+        this.output = output;
+    }
+
     [Fact]
     public void SizeTests()
     {
@@ -44,9 +52,9 @@ public class PhiLint8LinearTests
         // set both weight and bias to rand int8 values
         // and compare the result before and after ToInt8
 
-        var input = torch.randn(10 ,2200, 123, device: device);
-        var weight = torch.randn(10, 123, device: device);
-        var bias = torch.randn(10, device: device);
+        var input = torch.randint(-128, 127, [10, 2200, 123], device: device);
+        var weight = torch.randint(-128, 127, [10, 123], device: device);
+        var bias = torch.randint(-128, 127, [10], device: device);
 
         // scale and zero point on vector-wise
         //input = input * (250 / (torch.max(input) - torch.min(input)));
@@ -67,5 +75,54 @@ public class PhiLint8LinearTests
 
         // compare the result
         resultBeforeInt8.Peek("result").Should().Be(resultAfterInt8.Peek("result"));
+    }
+
+    [Fact]
+    public void MatMulitBenchmark()
+    {
+        var sizeX = new long[] { 1, 1000, 1000 };
+        var sizeY = new long[] { 1000, 100 };
+        var device = "cpu";
+        // float32
+        var x = torch.randn(sizeX, device: device);
+        var y = torch.randn(sizeY, device: device);
+
+        // warm up
+        for (var i = 0; i < 10; i++)
+        {
+            var _ = torch.matmul(x, y);
+        }
+
+        // measure
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        for (var i = 0; i < 10; i++)
+        {
+            var _ = torch.matmul(x, y);
+        }
+        timer.Stop();
+
+        output.WriteLine($"MatMulitBenchmark elapsed time: {timer.ElapsedMilliseconds} ms");
+
+        // int8
+        var xInt8 = x.to(ScalarType.Int8);
+        var yInt8 = y.to(ScalarType.Int8);
+
+        // warm up
+        for (var i = 0; i < 10; i++)
+        {
+            var _ = torch.matmul(xInt8, yInt8);
+        }
+
+        // measure
+        timer.Restart();
+        for (var i = 0; i < 10; i++)
+        {
+            var _ = torch.matmul(xInt8, yInt8);
+        }
+
+        timer.Stop();
+
+        output.WriteLine($"MatMulitBenchmark int8 elapsed time: {timer.ElapsedMilliseconds} ms");
+
     }
 }

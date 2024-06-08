@@ -96,8 +96,8 @@ public class Phi3Attention : nn.Module<Phi3AttentionInput, Phi3AttentionOutput>
         (this.head_dim * this.num_heads).Should().Be(this.hidden_size, "hidden_size must be divisible by num_heads");
 
         var op_size = this.num_heads * this.head_dim + 2 * (this.num_key_value_heads * this.head_dim);
-        this.o_proj = new PhiInt8Linear(this.num_heads * this.head_dim, this.hidden_size, hasBias: false, dtype: config.DType);
-        this.qkv_proj = new PhiInt8Linear(this.hidden_size, op_size, hasBias: false, dtype: config.DType);
+        this.o_proj = new PhiInt4Linear(this.num_heads * this.head_dim, this.hidden_size, hasBias: false, dtype: config.DType);
+        this.qkv_proj = new PhiInt4Linear(this.hidden_size, op_size, hasBias: false, dtype: config.DType);
         this._init_rope();
     }
 

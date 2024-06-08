@@ -27,11 +27,11 @@ var tokenizer = LLama2Tokenizer.FromPretrained(phiFolder);
 
 var deviceSizeMap = new Dictionary<string, long>
 {
-    ["cuda:0"] = 12L * 1024 * 1024 * 1024,
+    ["cuda:0"] = 5L * 1024 * 1024 * 1024,
     ["cpu"] = 64L * 1024 * 1024 * 1024,
     ["disk"] = 2L * 1024 * 1024 * 1024 * 1024,
 };
-//model.ToQuantizedModule();
+model.ToQuantizedModule();
 var deviceMap = model.InferDeviceMapForEachLayer(
     devices: [ "cuda:0", "cpu", "disk" ],
     deviceSizeMapInByte: deviceSizeMap);
@@ -49,8 +49,8 @@ Console.WriteLine($"Phi3 loaded in {timer.ElapsedMilliseconds / 1000} s");
 // agent
 var agent = new Phi3Agent(pipeline, "assistant")
     .RegisterPrintMessage();
-var question = @"count to 3";
-var systemMessage = new TextMessage(Role.System, "You are a helpful AI assistant that always respond in JSON format");
+var question = @"Use C# to calculate 100th fibonacci";
+var systemMessage = new TextMessage(Role.System, "You are a helpful AI assistant.");
 var userMessage = new TextMessage(Role.User, question);
 for (int i = 0; i!= 100; ++i)
 {
