@@ -3,16 +3,17 @@ using static TorchSharp.torch;
 
 public class PhiLinear : nn.Module<Tensor, Tensor>
 {
-    private readonly Tensor weight;
-    private readonly Tensor? bias;
-    private int inFeatures;
-    private int outFeatures;
+    protected Tensor? weight;
+    protected readonly Tensor? bias;
+    protected int inFeatures;
+    protected int outFeatures;
 
     public PhiLinear(int inFeatures, int outFeatures, bool hasBias = true, ScalarType dtype = ScalarType.Float32, string? device = null)
         : base(nameof(PhiLinear))
     {
         this.inFeatures = inFeatures;
         this.outFeatures = outFeatures;
+        device = device ?? "cpu";
         this.weight = torch.randn(outFeatures, inFeatures, dtype: dtype, device: device);
 
         if (hasBias)
@@ -37,6 +38,7 @@ public class PhiLinear : nn.Module<Tensor, Tensor>
             result = result + this.bias.to_type(ScalarType.Float32);
         }
 
+        result.Peek("result");
         return result.to_type(input.dtype).MoveToOuterDisposeScope();
     }
 }

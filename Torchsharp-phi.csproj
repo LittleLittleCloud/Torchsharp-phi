@@ -23,7 +23,7 @@
     <PackageReference Include="TorchSharp-cuda-windows" Version="$(TorchSharpVersion)" />
     <!-- If you don't have GPU, use the following package -->
     <!-- <PackageReference Include="TorchSharp-cpu" Version="0.101.5" /> -->
-    <PackageReference Include="TorchSharp.PyBridge" Version="1.3.2" />
+    <PackageReference Include="TorchSharp.PyBridge" Version="1.4.1" />
   </ItemGroup>
 
 	<ItemGroup>
