@@ -6,11 +6,13 @@ using System.Threading.Tasks;
 using static TorchSharp.torch;
 using TorchSharp.Modules;
 using TorchSharp;
+using Phi.Module;
+using Phi.Tests;
 
 public class Phi3MLP : torch.nn.Module<Tensor, Tensor>
 {
-    private readonly Linear gate_up_proj;
-    private readonly Linear down_proj;
+    private readonly PhiLinear gate_up_proj;
+    private readonly PhiLinear down_proj;
     private readonly torch.nn.Module<Tensor, Tensor> activation_fn;
 
     public Phi3MLP(Phi3Config config)
@@ -21,8 +23,8 @@ public class Phi3MLP : torch.nn.Module<Tensor, Tensor>
     public Phi3MLP(int hiddenSize, int intermediateSize, string hiddenAct, ScalarType dtype)
         : base(nameof(Phi3MLP))
     {
-        this.gate_up_proj = torch.nn.Linear(hiddenSize, 2 * intermediateSize, hasBias: false, dtype: dtype);
-        this.down_proj = torch.nn.Linear(intermediateSize, hiddenSize, hasBias: false, dtype: dtype);
+        this.gate_up_proj = new PhiInt4Linear(hiddenSize, 2 * intermediateSize, hasBias: false, dtype: dtype);
+        this.down_proj = new PhiInt4Linear(intermediateSize, hiddenSize, hasBias: false, dtype: dtype);
         this.RegisterComponents();
         this.activation_fn = Utils.GetActivation(hiddenAct);
     }

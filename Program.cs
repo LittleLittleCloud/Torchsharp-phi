@@ -8,7 +8,7 @@ using Phi.Pipeline;
 using TorchSharp;
 using static TorchSharp.torch;
 
-var phi2Folder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-4k-instruct";
+var phiFolder = @"C:\Users\xiaoyuz\source\repos\Phi-3-mini-4k-instruct";
 var device = "cpu";
 
 if (device == "cuda")
@@ -22,22 +22,22 @@ torch.manual_seed(1);
 
 Console.WriteLine("Loading Phi3 from huggingface model weight folder");
 var timer = System.Diagnostics.Stopwatch.StartNew();
-var model = Phi3ForCasualLM.FromPretrained(phi2Folder, device: device, torchDtype: defaultType, checkPointName: "model.safetensors.index.json");
-var tokenizer = LLama2Tokenizer.FromPretrained(phi2Folder);
+var model = Phi3ForCasualLM.FromPretrained(phiFolder, device: device, torchDtype: defaultType, checkPointName: "model.safetensors.index.json");
+var tokenizer = LLama2Tokenizer.FromPretrained(phiFolder);
 
 var deviceSizeMap = new Dictionary<string, long>
 {
-    ["cuda:0"] = 0L * 1024 * 1024 * 1024,
+    ["cuda:0"] = 5L * 1024 * 1024 * 1024,
     ["cpu"] = 64L * 1024 * 1024 * 1024,
     ["disk"] = 2L * 1024 * 1024 * 1024 * 1024,
 };
+model.ToQuantizedModule();
 var deviceMap = model.InferDeviceMapForEachLayer(
     devices: [ "cuda:0", "cpu", "disk" ],
     deviceSizeMapInByte: deviceSizeMap);
 
 var json = JsonSerializer.Serialize(deviceMap, new JsonSerializerOptions { WriteIndented = true });
 Console.WriteLine(json);
-
 model = model.ToDynamicLoadingModel(deviceMap, "cuda:0");
 
 var pipeline = new CasualLMPipeline(tokenizer, model, device);
@@ -49,8 +49,8 @@ Console.WriteLine($"Phi3 loaded in {timer.ElapsedMilliseconds / 1000} s");
 // agent
 var agent = new Phi3Agent(pipeline, "assistant")
     .RegisterPrintMessage();
-var question = @"count to 3";
-var systemMessage = new TextMessage(Role.System, "You are a helpful AI assistant that always respond in JSON format");
+var question = @"Use C# to calculate 100th fibonacci";
+var systemMessage = new TextMessage(Role.System, "You are a helpful AI assistant.");
 var userMessage = new TextMessage(Role.User, question);
 for (int i = 0; i!= 100; ++i)
 {

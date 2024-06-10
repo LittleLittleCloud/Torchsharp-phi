@@ -49,6 +49,23 @@ public static class Extension
         }
     }
 
+    public static void ToQuantizedModule<T>(
+        this T model)
+        where T : nn.Module
+    {
+        foreach (var (_, value) in model.named_children())
+        {
+            if (value is IQuantizeModule quantizeModule)
+            {
+                quantizeModule.Quantize();
+            }
+            else
+            {
+                value.ToQuantizedModule();
+            }
+        }
+    }
+
     public static T ToDynamicLoadingModel<T>(
         this T model,
         Dictionary<string, string> deviceMap,
