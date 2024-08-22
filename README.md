@@ -1,3 +1,6 @@
+# Archived
+The implementation of this repo has been ported to [`Microsoft.ML.GenAI.Phi`](https://github.com/dotnet/machinelearning/tree/main/src/Microsoft.ML.GenAI.Phi)
+
 ## Torchsharp Phi
 
 This repo contains a torchsharp implementation for phi model.
