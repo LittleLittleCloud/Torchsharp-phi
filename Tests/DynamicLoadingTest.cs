@@ -20,7 +20,7 @@ namespace Phi.Tests;
 public class DynamicLoadingTest
 {
     private ITestOutputHelper output;
-    private int testDimension = 1024 * 2 * 2;
+    private int testDimension = 1024 * 4;
     private int preHeat = 1;
     private int loops = 10;
     private int numLayers = 512;
@@ -84,7 +84,15 @@ public class DynamicLoadingTest
         var device = "cpu";
         var input = torch.randn(testDimension, testDimension, device: device);
         var model = new SequentialLinear(testDimension, device);
+        await BenchmarkAsync(device, input, model);
+    }
 
+    [Fact]
+    public async Task QuantizeGPUBenchmarkAsync()
+    {
+        var device = "cuda:0";
+        var input = torch.randn(testDimension, testDimension, device: device);
+        var model = new SequentialLinear(testDimension, device);
         await BenchmarkAsync(device, input, model);
     }
 
@@ -161,7 +169,7 @@ public class DynamicLoadingTest
         //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear4;
         //private readonly DynamicLoadingModule<PhiLinear, Tensor, Tensor> linear5;
 
-        private readonly ModuleList<DynamicLoadingModule<PhiLinear, Tensor, Tensor>> linears;
+        private readonly ModuleList<DynamicLoadingModule<PhiInt8Linear, Tensor, Tensor>> linears;
         public SequentialLinear(int features, string? device = null, int numberOfLayers = 64)
             : base(nameof(SequentialLinear))
         {
@@ -171,11 +179,11 @@ public class DynamicLoadingTest
             //this.linear4 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
             //this.linear5 = DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device));
 
-            this.linears = new ModuleList<DynamicLoadingModule<PhiLinear, Tensor, Tensor>>();
+            this.linears = new ModuleList<DynamicLoadingModule<PhiInt8Linear, Tensor, Tensor>>();
 
             for (int i = 0; i < numberOfLayers; i++)
             {
-                this.linears.Add(DynamicLoadingModule<PhiLinear, Tensor, Tensor>.CreateFromModel(new PhiLinear(features, features, device: device)));
+                this.linears.Add(DynamicLoadingModule<PhiInt8Linear, Tensor, Tensor>.CreateFromModel(new PhiInt8Linear(features, features, device: device)));
             }
 
             this.RegisterComponents();

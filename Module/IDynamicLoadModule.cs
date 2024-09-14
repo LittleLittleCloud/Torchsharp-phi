@@ -13,3 +13,8 @@ public interface IDynamicLoadModule
 
     public Action<nn.Module>? UnloadFromDeviceFunc { get; set; }
 }
+
+public interface IQuantizeModule
+{
+    public void Quantize();
+}

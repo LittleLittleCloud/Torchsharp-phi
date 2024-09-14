@@ -49,7 +49,7 @@ public class Phi3ForCasualLM : nn.Module<CasualLMModelInput, CasualLMModelOutput
         modelConfig.DType = torchDtype;
         var phi = new Phi3ForCasualLM(modelConfig);
         var loadedParameters = new Dictionary<string, bool>();
-        phi.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: false, loadedParameters: loadedParameters);
+        phi.load_checkpoint(path: modelFolder, checkpointName: checkPointName, strict: false, loadedParameters: loadedParameters, useTqdm: false);
         phi = phi.to(device);
         phi.eval();
 
